@@ -1,0 +1,17 @@
+# Ignore generated output from CMake and Make
+/CMakeCache.txt
+/CMakeFiles/
+Makefile
+cmake_install.cmake
+
+# Ignore any object files produced by compliation
+*.so
+
+# Ignore vim's swap files files.
+*.sw?
+
+# Ignore Python's cache directories
+__pycache__/
+
+# Ignore generated output from this project
+/output/
