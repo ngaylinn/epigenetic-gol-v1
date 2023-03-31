@@ -16,12 +16,35 @@ def snake_case(camel_case_string):
 class TestCase(unittest.TestCase):
     """A base TestCase for this project with useful assertions."""
 
-    def assertArrayEqual(self, a1, a2):
-        if np.array_equal(a1, a2):
-            return
-        print('Arguments do not match.')
-        print(f'First:  {a1.shape} == {a1}')
-        print(f'Second: {a2.shape} == {a2}')
+    def get_test_data_location(self):
+        class_name, test_name = self.id().split('.')[-2:]
+        path = f'tests/{snake_case(class_name)}/'
+        os.makedirs(path, exist_ok=True)
+        return path, test_name
+
+    def assertProportional(self, expected, actual, delta, msg=None):
+        """Assert that second is within some multiple of first."""
+        difference = abs(expected - actual)
+        percent = difference / expected
+        self.assertLessEqual(
+            percent, delta,
+            f'difference between {expected} and {actual} is '
+            f'{100 * percent:0.2f}%, which is not less than '
+            f'{100 * delta:0.2f}%: {msg}')
+
+    def assertArrayEqual(self, a1, a2, msg=None):
+        """Assert two Numpy arrays are exactly equal."""
+        self.assertEqual(
+            a1.size, a2.size,
+            f'Arrays are different sizes ({a1.size} vs {a2.size}): {msg}')
+        self.assertEqual(
+            a1.shape, a2.shape,
+            f'Arrays are different shapes ({a1.shape} vs {a2.shape}): {msg}')
+        diffs = np.count_nonzero(a1 - a2)
+        size = a1.size
+        self.assertEqual(
+            0, diffs,
+            f'Arrays differ in {diffs} of {size} positions: {msg}')
 
     def assertImagesEqual(self, image1, image2):
         """A debug method for comparing two images or videos."""
@@ -58,8 +81,7 @@ class TestCase(unittest.TestCase):
             with several frames. All pixels are assumed to be grayscale values
             between 0 and 255.
         """
-        class_name, test_name = self.id().split('.')[-2:]
-        path = f'tests/{snake_case(class_name)}/'
+        path, test_name = self.get_test_data_location()
         filename = f'{path}/{test_name}.gif'
         if os.path.exists(filename):
             golden_data = gif_files.load_image(filename)
@@ -80,7 +102,6 @@ class TestCase(unittest.TestCase):
         else:
             # If the golden file wasn't found, the directory for golden files
             # might not even be set up yet, so make sure it exists.
-            os.makedirs(path, exist_ok=True)
             fig = plt.figure(f'{test_name}: Please manually verify.')
             gif_files.save_image(data, filename)
             animation = gif_files.add_image_to_figure(data, fig)

@@ -5,18 +5,30 @@
 #include <pybind11/numpy.h>
 
 #include "environment.h"
+#include "gol_simulation.h"
+#include "phenotype_program.h"
+#include "reproduction.h"
 #include "simulator.h"
 
 namespace epigenetic_gol_kernel {
 
 namespace py = pybind11;
 
+/*
+ * Bindings for C++ types and functions to expose to Python.
+ *
+ * The primary interface with Python is the Simulator class, which is mirrored
+ * more or less 1:1 in the Python interface. There are also a few data types,
+ * constants, and miscellaneous functions that are important for working with
+ * the Simulator class and testing it.
+ */
 PYBIND11_MODULE(kernel, m) {
+    PYBIND11_NUMPY_DTYPE(Genotype, scalar_genes, stamp_genes);
     py::class_<Simulator>(m, "Simulator")
         .def(py::init<int, int, int>())
         .def("populate",
             [](Simulator& simulator) {
-                // TODO: Support passing Interpreters from Python.
+                // TODO: Support passing PhenotypePrograms from Python.
                 simulator.populate();
             })
         .def("propagate", &Simulator::propagate)
@@ -30,7 +42,8 @@ PYBIND11_MODULE(kernel, m) {
                      simulator.num_trials,
                      simulator.num_organisms},
                     simulator.get_fitness_scores());
-            })
+            },
+            py::return_value_policy::reference_internal)
         .def("get_videos",
             [](const Simulator& simulator) {
                 return py::array(
@@ -40,50 +53,63 @@ PYBIND11_MODULE(kernel, m) {
                      simulator.num_organisms,
                      NUM_STEPS, WORLD_SIZE, WORLD_SIZE},
                     (Cell*) simulator.get_videos());
-            })
+            },
+            py::return_value_policy::reference_internal)
         .def("get_genotypes",
             [](const Simulator& simulator) {
-                // TODO: Figure out how to return Genotype objects as a numpy
-                // structured array.
-            })
+                return py::array_t<Genotype>(
+                    {simulator.num_species,
+                     simulator.num_trials,
+                     simulator.num_organisms},
+                    simulator.get_genotypes());
+            },
+            py::return_value_policy::reference_internal)
         .def("get_state", &Simulator::get_state)
         .def("restore_state", &Simulator::restore_state)
         .def("reset_state", &Simulator::reset_state)
+        .def("breed_genotypes",
+            [](Simulator& simulator,
+               py::array_t<Genotype> genotypes,
+               std::vector<unsigned int> parent_selections,
+               std::vector<unsigned int> mate_selections) {
+                const Genotype* genotypes_data =
+                    &(genotypes.unchecked<3>()(0, 0, 0));
+                return py::array_t<Genotype>(
+                    {simulator.num_species,
+                     simulator.num_trials,
+                     simulator.num_organisms},
+                    simulator.breed_genotypes(
+                        genotypes_data, parent_selections, mate_selections));
+            })
         .def_readonly("num_species", &Simulator::num_species)
         .def_readonly("num_trials", &Simulator::num_trials)
         .def_readonly("num_organisms", &Simulator::num_organisms)
         .def_readonly("size", &Simulator::size);
-    py::class_<TestSimulator, Simulator>(m, "TestSimulator")
-        .def(py::init<int, int, int>())
-        .def("simulate_phenotype",
-            [](TestSimulator& simulator,
-                py::array_t<Cell, py::array::c_style> h_phenotypes,
-                FitnessGoal goal, bool record) {
-               if (h_phenotypes.ndim() != 2 ||
-                       h_phenotypes.shape()[0] != WORLD_SIZE ||
-                       h_phenotypes.shape()[1] != WORLD_SIZE) {
-                   fprintf(
-                        stderr,
-                        "Injected phenotype must have size %d x %d\n",
-                        WORLD_SIZE, WORLD_SIZE);
-                   return;
-               }
-               Frame* raw_data = (Frame*) &h_phenotypes.unchecked<2>()(0, 0);
-               simulator.simulate_phenotype(raw_data, goal, record);
-            },
-            py::arg("h_phenotypes"),
-            py::arg("goal"),
-            py::arg("record") = false);
+    m.def("simulate_phenotype",
+        [](py::array_t<Cell> phenotype) {
+            Frame* phenotype_data = (Frame*) &(phenotype.unchecked<2>()(0, 0));
+            return py::array(
+                    py::dtype::of<Cell>(),
+                    {NUM_STEPS, WORLD_SIZE, WORLD_SIZE},
+                    simulate_phenotype(*phenotype_data));
+        });
     py::enum_<FitnessGoal>(m, "FitnessGoal")
         .value("STILL_LIFE", FitnessGoal::STILL_LIFE)
         .value("TWO_CYCLE", FitnessGoal::TWO_CYCLE)
         .export_values();
     m.attr("WORLD_SIZE") = py::int_(WORLD_SIZE);
     m.attr("NUM_STEPS") = py::int_(NUM_STEPS);
+    m.attr("NUM_SCALARS") = py::int_(NUM_SCALARS);
+    m.attr("NUM_STAMPS") = py::int_(NUM_STAMPS);
+    m.attr("STAMP_SIZE") = py::int_(STAMP_SIZE);
+    m.attr("CELLS_PER_STAMP") = py::int_(CELLS_PER_STAMP);
+    m.attr("Genotype") = py::dtype::of<Genotype>();
     py::enum_<Cell>(m, "Cell")
         .value("ALIVE", Cell::ALIVE)
         .value("DEAD", Cell::DEAD)
         .export_values();
+    m.attr("CROSSOVER_RATE") = py::float_(CROSSOVER_RATE);
+    m.attr("MUTATION_RATE") = py::float_(MUTATION_RATE);
 }
 
 } // namespace epigenetic_gol_kernel

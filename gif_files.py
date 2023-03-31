@@ -123,3 +123,9 @@ def add_image_to_figure(data, fig):
         fig, animate_func, frames=data.shape[0],
         interval=MILLISECONDS_PER_FRAME)
     return anim
+
+
+def display_image(data):
+    fig = plt.figure()
+    anim = add_image_to_figure(data, fig)
+    plt.show()

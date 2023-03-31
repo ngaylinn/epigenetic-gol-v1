@@ -6,8 +6,7 @@
 #include <curand_kernel.h>
 
 #include "environment.h"
-#include "genotype.cuh"
-#include "interpreter.cuh"
+#include "phenotype_program.h"
 
 namespace epigenetic_gol_kernel {
 
@@ -28,13 +27,23 @@ namespace epigenetic_gol_kernel {
  */
 class Simulator {
     protected:
-        Interpreter** interpreters;
+        // Device-side allocations for computation
+        PhenotypeProgram* programs;
         curandState* rngs;
-        Genotype* genotypes;
+        Genotype* genotype_buffer_0;
+        Genotype* genotype_buffer_1;
+        Genotype* curr_gen_genotypes;
+        Genotype* next_gen_genotypes;
         unsigned int* parent_selections;
         unsigned int* mate_selections;
         Fitness* fitness_scores;
         Video* videos;
+
+        // Host-side allocations for data transfer
+        PhenotypeProgram* h_programs;
+        Fitness* h_fitness_scores;
+        Video* h_videos;
+        Genotype* h_genotypes;
 
     public:
         const unsigned int num_species;
@@ -55,7 +64,7 @@ class Simulator {
         // -------------------------------------------------------------------
 
         // Generate a randomized population.
-        void populate(Interpreter* h_interpreters = nullptr);
+        void populate(PhenotypeProgram* h_programs = nullptr);
         // Generate a new population from the previous generation.
         void propagate();
         // Note, simulate always updates fitness_scores but for performance
@@ -77,18 +86,15 @@ class Simulator {
         const std::vector<unsigned char> get_state() const;
         void restore_state(std::vector<unsigned char> data);
         void reset_state();
-};
 
-// An alternate implementation of Simulator for testing with methods for data
-// injection.
-class TestSimulator : public Simulator {
-    public:
-        using Simulator::Simulator;
+        // -------------------------------------------------------------------
+        // Methods to inject data for testing
+        // -------------------------------------------------------------------
 
-        // Alternative to populate() that forces all simulations to use the
-        // given phenotype.
-        void simulate_phenotype(
-                const Frame* h_phenotype, FitnessGoal goal, bool record=false);
+        const Genotype* breed_genotypes(
+                const Genotype* genotype_data,
+                std::vector<unsigned int> h_parent_selections,
+                std::vector<unsigned int> h_mate_selections);
 };
 
 } // namespace epigenetic_gol_kernel

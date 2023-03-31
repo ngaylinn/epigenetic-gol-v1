@@ -11,29 +11,13 @@
  */
 
 #include "environment.h"
+#include "phenotype_program.h"
 
 namespace epigenetic_gol_kernel {
 
-// Forward declared from interpreter.cuh to avoid a circular dependency.
-class BoundArguments;
-
-// An exhaustive list of Operations. When adding a new apply func, make sure to
-// add a new enum value here.
-enum class OperationType {
-    ARRAY_1D,  // Repeat phenotype pattern in a line
-    ARRAY_2D,  // Repeat phenotype pattern in a grid
-    COPY,      // Copy the phenotype pattern once, with some offset
-    DRAW,      // Draw a Stamp onto the phenotype
-    TRANSLATE, // Shift phenotype pattern by some offset
-    SIZE
-};
-
-// Apply an Operation function, potentially setting the value of cell to modify
-// the phenotype, or changing the values of row and col to modify the indexing
-// scheme for other Operations.
-__device__ void apply_operation(
-        OperationType type, const BoundArguments& args,
-        int& row, int& col, Cell& cell);
+__device__ void make_phenotype(
+        const Genotype& genotype, const PhenotypeProgram& program,
+        int row, int col, Cell& cell);
 
 } // namespace epigenetic_gol_kernel
 

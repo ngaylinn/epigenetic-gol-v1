@@ -1,7 +1,6 @@
 #ifndef __FITNESS_H__
 #define __FITNESS_H__
 
-#include <array>
 #include "environment.h"
 
 namespace epigenetic_gol_kernel {

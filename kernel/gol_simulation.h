@@ -1,9 +1,8 @@
-#ifndef __GOL_H__
-#define __GOL_H__
+#ifndef __GOL_SIMULATION_H__
+#define __GOL_SIMULATION_H__
 
 #include "environment.h"
-#include "genotype.cuh"
-#include "interpreter.cuh"
+#include "phenotype_program.h"
 
 namespace epigenetic_gol_kernel {
 
@@ -19,12 +18,15 @@ namespace epigenetic_gol_kernel {
 void simulate_population(
         const unsigned int population_size,
         const unsigned int num_species,
-        const Interpreter* const* interpreters,
-        const Genotype* genotypes,
         const FitnessGoal& goal,
+        const PhenotypeProgram* programs,
+        const Genotype* genotypes,
         Video* videos,
         Fitness* fitness_scores,
         bool record = false);
+
+// Run a single Game of Life Simulation on the CPU (for testing)
+Video* simulate_phenotype(const Frame& phenotype);
 
 } // namespace epigenetic_gol_kernel
 

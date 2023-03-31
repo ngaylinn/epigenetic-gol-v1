@@ -1,8 +1,9 @@
-#include "gol_simulation.cuh"
+#include "gol_simulation.h"
 
 #include <cub/cub.cuh>
 
-#include "interpreter.cuh"
+#include "cuda_utils.cuh"
+#include "development.cuh"
 #include "fitness.cuh"
 
 namespace epigenetic_gol_kernel {
@@ -12,7 +13,7 @@ constexpr int CELLS_PER_THREAD = 8;
 constexpr int REPEATS_PER_ROW = WORLD_SIZE / CELLS_PER_THREAD;
 constexpr int THREADS_PER_BLOCK = WORLD_SIZE * REPEATS_PER_ROW;
 
-__device__ Cell get_next_state(
+__device__ __host__ Cell get_next_state(
         const int& curr_row, const int& curr_col, const Frame& last_frame) {
     // Count up neighbors of this Cell that are ALIVE by looking at all the
     // adjacent Cells that are in bounds for this Frame. Bounds checking is
@@ -37,13 +38,12 @@ __device__ Cell get_next_state(
     return (last_state == Cell::ALIVE && (neighbors == 2 || neighbors == 3) ||
             last_state == Cell::DEAD && neighbors == 3)
         ? Cell::ALIVE : Cell::DEAD;
-
 }
 
 __global__ void GolKernel(
-        const Interpreter* const* interpreters,
-        const Genotype* genotypes,
         const FitnessGoal goal,
+        const PhenotypeProgram* phenotype_programs,
+        const Genotype* genotypes,
         Video* videos,
         Fitness* fitness_scores,
         bool record) {
@@ -52,7 +52,8 @@ __global__ void GolKernel(
     const int row = threadIdx.x / REPEATS_PER_ROW;
     const int col = CELLS_PER_THREAD * (threadIdx.x % REPEATS_PER_ROW);
 
-    const Interpreter* interpreter = interpreters[species_index];
+    const PhenotypeProgram& phenotype_program =
+        phenotype_programs[species_index];
     const Genotype& genotype = genotypes[population_index];
     Video& video = videos[population_index];
     Fitness& fitness = fitness_scores[population_index];
@@ -75,11 +76,7 @@ __global__ void GolKernel(
     // Interpret this organism's genotype to generate the phenotype, which is
     // the first frame of the simulation.
     for (int i = 0; i < CELLS_PER_THREAD; i++) {
-        // TODO: Would it be worth it to compile the interpreter? We recompute
-        // the whole thing once per organism per generation, even though it
-        // never changes. Those costs could add up. Revisit when the
-        // interpretter programs become more complicated.
-        interpreter->run(genotype, row, col+i, curr_frame[i]);
+        make_phenotype(genotype, phenotype_program, row, col+i, curr_frame[i]);
     }
 
     // Make sure this frame is finished before looking at it.
@@ -137,18 +134,33 @@ __global__ void GolKernel(
 void simulate_population(
         const unsigned int population_size,
         const unsigned int num_species,
-        const Interpreter* const* interpreters,
-        const Genotype* genotypes,
         const FitnessGoal& goal,
+        const PhenotypeProgram* phenotype_programs,
+        const Genotype* genotypes,
         Video* videos,
         Fitness* fitness_scores,
         bool record) {
-    // Organize the work by species so it's easy to look up the right
-    // interpreter.
     GolKernel<<<
-        {population_size / num_species, num_species},
-        {THREADS_PER_BLOCK}
-    >>>(interpreters, genotypes, goal, videos, fitness_scores, record);
+        { population_size / num_species, num_species },
+        THREADS_PER_BLOCK
+    >>>(goal, phenotype_programs, genotypes, videos, fitness_scores, record);
+    CUDA_CHECK_ERROR();
+}
+
+Video* simulate_phenotype(const Frame& phenotype) {
+    Video* video = (Video*) new Video;
+    // Fill in the first frame of the Video from the phenotype
+    memcpy(video, &phenotype, sizeof(Frame));
+    // Compute the remaining frames from the first one.
+    for (int step = 1; step < NUM_STEPS; step++) {
+        for (int row = 0; row < WORLD_SIZE; row++) {
+            for (int col = 0; col < WORLD_SIZE; col++) {
+                (*video)[step][row][col] = 
+                    get_next_state(row, col, (*video)[step-1]);
+            }
+        }
+    }
+    return video;
 }
 
 } // namespace epigenetic_gol_kernel

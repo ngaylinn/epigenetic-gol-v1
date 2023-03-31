@@ -9,8 +9,7 @@
 // TODO: Remove this when you're done debugging.
 #include <stdio.h>
 
-// TODO: Put this back once you figure out why it breaks linking.
-// namespace epigenetic_gol_kernel {
+namespace epigenetic_gol_kernel {
 
 // The length of one side of a square simulated environment.
 constexpr unsigned int WORLD_SIZE = 64;
@@ -41,10 +40,6 @@ enum class FitnessGoal {
     SIZE
 };
 
-// The maximum number of threads allowable per block. This may be different
-// with different GPU devices.
-constexpr unsigned int MAX_THREADS = 1024;
-
-// } // namespace epigenetic_gol_kernel
+} // namespace epigenetic_gol_kernel
 
 #endif

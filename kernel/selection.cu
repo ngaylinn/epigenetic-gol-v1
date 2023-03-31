@@ -1,6 +1,7 @@
-#include "selection.cuh"
+#include "selection.h"
 
 #include <thrust/swap.h>
+#include "cuda_utils.cuh"
 
 namespace epigenetic_gol_kernel {
 namespace {
@@ -73,7 +74,7 @@ __device__ __host__ void select(
     }
 }
 
-__global__ void SelectionKernel(
+__global__ void SelectKernel(
         unsigned int population_size,
         unsigned int num_organisms,
         const Fitness* fitness_scores,
@@ -114,11 +115,12 @@ void select_from_population(
         unsigned int* mate_selections, curandState* rngs) {
     // Break the work down into batches of num_organisms individuals.
     int batches = population_size / num_organisms;
-    SelectionKernel<<<
+    SelectKernel<<<
         (batches + MAX_THREADS - 1) / MAX_THREADS,
         min(batches, MAX_THREADS)
     >>>(population_size, num_organisms, fitness_scores,
         parent_selections, mate_selections, rngs);
+    CUDA_CHECK_ERROR();
 }
 
 std::vector<unsigned int> select(const std::vector<Fitness> scores) {

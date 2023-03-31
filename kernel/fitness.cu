@@ -1,8 +1,12 @@
 #include "fitness.cuh"
-#include <cub/cub.cuh>
 
 namespace epigenetic_gol_kernel {
 namespace {
+
+// TODO: Add more fitness goals.
+// - Center-of-mass analysis version of left-to-right, other variants.
+// - Glider detection
+// - Algorithmic Specified Complexity?
 
 __device__ void update_still_life(
         const int& step, const int&, const int&,
