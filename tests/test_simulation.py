@@ -8,6 +8,7 @@ import unittest
 import numpy as np
 
 import kernel
+import phenotype_program
 from tests import test_case
 
 GLIDER = np.array(
@@ -50,7 +51,7 @@ class TestSimulation(test_case.TestCase):
             result = {}
             goal = kernel.FitnessGoal.STILL_LIFE
             simulator = kernel.Simulator(3, 3, 32)
-            simulator.populate()
+            simulator.populate(phenotype_program.get_defaults(3))
             simulator.simulate(goal, record=True)
             result['videos'] = get_video_list(simulator)
             result['fitness'] = simulator.get_fitness_scores()
@@ -65,10 +66,9 @@ class TestSimulation(test_case.TestCase):
 
     def test_gpu_and_cpu_agree(self):
         """The fancy GPU-optimized simulation matches the basic one."""
-        simulator = kernel.Simulator(3, 3, 32)
         goal = kernel.FitnessGoal.STILL_LIFE
         simulator = kernel.Simulator(3, 3, 32)
-        simulator.populate()
+        simulator.populate(phenotype_program.get_defaults(3))
         simulator.simulate(goal, record=True)
         gpu_video = get_video_list(simulator)[0]
         # Run the CPU simulation with the same randomly generated phenotype we

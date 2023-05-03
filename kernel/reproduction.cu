@@ -113,7 +113,6 @@ __global__ void ReproduceKernel(
 
 void randomize_population(
         unsigned int population_size,
-        unsigned int num_organisms,
         Genotype* genotypes,
         curandState* rngs) {
     // Arrange the grid so that there is one thread per organism which will
@@ -131,7 +130,6 @@ void randomize_population(
 
 void breed_population(
         unsigned int population_size,
-        unsigned int num_organisms,
         const unsigned int* parent_selections,
         const unsigned int* mate_selections,
         const Genotype* input_genotypes,
@@ -149,6 +147,26 @@ void breed_population(
     >>>(population_size, parent_selections, mate_selections,
             input_genotypes, output_genotypes, rngs);
     CUDA_CHECK_ERROR();
+}
+
+const Genotype* breed_population(
+        const Genotype* h_input_genotypes,
+        std::vector<unsigned int> h_parent_selections,
+        std::vector<unsigned int> h_mate_selections) {
+    const int population_size = h_parent_selections.size();
+    DeviceData<Genotype> input_genotypes(population_size, h_input_genotypes);
+    DeviceData<Genotype> output_genotypes(population_size);
+    DeviceData<unsigned int> parent_selections(
+            population_size, h_parent_selections.data());
+    DeviceData<unsigned int> mate_selections(
+            population_size, h_mate_selections.data());
+    CurandStates rngs(population_size);
+
+    breed_population(
+            population_size, parent_selections, mate_selections,
+            input_genotypes, output_genotypes, rngs);
+
+    return output_genotypes.copy_to_host();
 }
 
 } // namespace epigenetic_gol_kernel

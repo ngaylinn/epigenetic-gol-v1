@@ -54,10 +54,8 @@ def save_image(data, filename):
 
 def make_array(image):
     """Create a 2D Numpy array from a single Image."""
-    raw_data = np.asarray(image, dtype=np.uint8)
-    resized = raw_data[::IMAGE_SCALE_FACTOR, ::IMAGE_SCALE_FACTOR]
-    normalized = (resized != 0x00) * 0xFF
-    return normalized
+    raw_data = np.array(image.convert('L'), dtype=np.uint8)
+    return raw_data[::IMAGE_SCALE_FACTOR, ::IMAGE_SCALE_FACTOR]
 
 
 def load_image(filename):
@@ -80,10 +78,7 @@ def load_image(filename):
         frames = []
         for frame in range(n_frames):
             image.seek(frame)
-            # Get channel shouldn't be necessary, but for some reason videos I
-            # save with all single-chanel frames load with the first frame
-            # single-chanel and the remaining frames with three channels.
-            frames.append(make_array(image.getchannel(0)))
+            frames.append(make_array(image))
         return np.array(frames)
 
 

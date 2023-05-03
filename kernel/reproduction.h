@@ -1,6 +1,8 @@
 #ifndef __REPRODUCTION_H__
 #define __REPRODUCTION_H__
 
+#include <vector>
+
 #include <curand_kernel.h>
 
 #include "environment.h"
@@ -22,12 +24,11 @@ constexpr float MUTATION_RATE = 0.001;
  */
 void randomize_population(
         unsigned int population_size,
-        unsigned int num_organisms,
         Genotype* genotypes,
         curandState* rngs);
 
 /* 
- * Initialize next_gen_genotypes from curr_gen_genotypes.
+ * Initialize output_genotypes from input_genotypes.
  *
  * The given selections are used for breeding, though whether an organism
  * reproduces sexually or asexually is determined by chance (the mate is
@@ -39,12 +40,18 @@ void randomize_population(
  */
 void breed_population(
         unsigned int population_size,
-        unsigned int num_organisms,
         const unsigned int* parent_selections,
         const unsigned int* mate_selections,
         const Genotype* input_genotypes,
         Genotype* output_genotypes,
         curandState* rngs);
+
+// A standalone version of the above to be called directly for testing.
+const Genotype* breed_population(
+        const Genotype* h_input_genotypes,
+        std::vector<unsigned int> h_parent_selections,
+        std::vector<unsigned int> h_mate_selections);
+
 
 } // namespace epigenetic_gol_kernel
 

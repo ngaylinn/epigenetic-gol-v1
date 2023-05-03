@@ -3,8 +3,6 @@
 
 #include <vector>
 
-#include <curand_kernel.h>
-
 #include "environment.h"
 #include "phenotype_program.h"
 
@@ -27,23 +25,11 @@ namespace epigenetic_gol_kernel {
  */
 class Simulator {
     protected:
-        // Device-side allocations for computation
-        PhenotypeProgram* programs;
-        curandState* rngs;
-        Genotype* genotype_buffer_0;
-        Genotype* genotype_buffer_1;
-        Genotype* curr_gen_genotypes;
-        Genotype* next_gen_genotypes;
-        unsigned int* parent_selections;
-        unsigned int* mate_selections;
-        Fitness* fitness_scores;
-        Video* videos;
-
-        // Host-side allocations for data transfer
-        PhenotypeProgram* h_programs;
-        Fitness* h_fitness_scores;
-        Video* h_videos;
-        Genotype* h_genotypes;
+        // The device-side memory allocations are stored in a sub-class in
+        // order to prevent CUDA-specific details leaking into this .h file,
+        // which needs to be standard C++ for pybind11 to use it.
+        class DeviceAllocations;
+        DeviceAllocations* d;
 
     public:
         const unsigned int num_species;
@@ -55,7 +41,8 @@ class Simulator {
         const unsigned int size;
 
         Simulator(
-            unsigned int num_species, unsigned int num_trials,
+            unsigned int num_species,
+            unsigned int num_trials,
             unsigned int num_organisms);
         ~Simulator();
 
@@ -64,7 +51,7 @@ class Simulator {
         // -------------------------------------------------------------------
 
         // Generate a randomized population.
-        void populate(PhenotypeProgram* h_programs = nullptr);
+        void populate(const PhenotypeProgram* h_programs);
         // Generate a new population from the previous generation.
         void propagate();
         // Note, simulate always updates fitness_scores but for performance
@@ -86,16 +73,12 @@ class Simulator {
         const std::vector<unsigned char> get_state() const;
         void restore_state(std::vector<unsigned char> data);
         void reset_state();
-
-        // -------------------------------------------------------------------
-        // Methods to inject data for testing
-        // -------------------------------------------------------------------
-
-        const Genotype* breed_genotypes(
-                const Genotype* genotype_data,
-                std::vector<unsigned int> h_parent_selections,
-                std::vector<unsigned int> h_mate_selections);
 };
+
+
+// TODO: Find a better home for this function.
+const Frame* preview_phenotype(const PhenotypeProgram& h_program);
+
 
 } // namespace epigenetic_gol_kernel
 

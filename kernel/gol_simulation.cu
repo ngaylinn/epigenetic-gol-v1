@@ -42,7 +42,7 @@ __device__ __host__ Cell get_next_state(
 
 __global__ void GolKernel(
         const FitnessGoal goal,
-        const PhenotypeProgram* phenotype_programs,
+        const PhenotypeProgram* programs,
         const Genotype* genotypes,
         Video* videos,
         Fitness* fitness_scores,
@@ -52,8 +52,7 @@ __global__ void GolKernel(
     const int row = threadIdx.x / REPEATS_PER_ROW;
     const int col = CELLS_PER_THREAD * (threadIdx.x % REPEATS_PER_ROW);
 
-    const PhenotypeProgram& phenotype_program =
-        phenotype_programs[species_index];
+    const PhenotypeProgram& program = programs[species_index];
     const Genotype& genotype = genotypes[population_index];
     Video& video = videos[population_index];
     Fitness& fitness = fitness_scores[population_index];
@@ -76,7 +75,9 @@ __global__ void GolKernel(
     // Interpret this organism's genotype to generate the phenotype, which is
     // the first frame of the simulation.
     for (int i = 0; i < CELLS_PER_THREAD; i++) {
-        make_phenotype(genotype, phenotype_program, row, col+i, curr_frame[i]);
+        // TODO: Pass last_frame as a workspace for the stack? It only has
+        // depth one, but that's enough for most simple compositions.
+        make_phenotype(program, genotype, row, col+i, curr_frame[i]);
     }
 
     // Make sure this frame is finished before looking at it.
@@ -135,7 +136,7 @@ void simulate_population(
         const unsigned int population_size,
         const unsigned int num_species,
         const FitnessGoal& goal,
-        const PhenotypeProgram* phenotype_programs,
+        const PhenotypeProgram* programs,
         const Genotype* genotypes,
         Video* videos,
         Fitness* fitness_scores,
@@ -143,7 +144,7 @@ void simulate_population(
     GolKernel<<<
         { population_size / num_species, num_species },
         THREADS_PER_BLOCK
-    >>>(goal, phenotype_programs, genotypes, videos, fitness_scores, record);
+    >>>(goal, programs, genotypes, videos, fitness_scores, record);
     CUDA_CHECK_ERROR();
 }
 
@@ -163,4 +164,43 @@ Video* simulate_phenotype(const Frame& phenotype) {
     return video;
 }
 
+namespace {
+
+__global__ void MakePhenotypeKernel(
+        const PhenotypeProgram& program,
+        const Genotype* genotypes,
+        Frame* phenotypes) {
+    const int population_index = blockIdx.x;
+    const int row = threadIdx.x / REPEATS_PER_ROW;
+    const int col = CELLS_PER_THREAD * (threadIdx.x % REPEATS_PER_ROW);
+
+    const Genotype& genotype = genotypes[population_index];
+    Frame& phenotype = phenotypes[population_index];
+
+    for (int i = 0; i < CELLS_PER_THREAD; i++) {
+        make_phenotype(program, genotype, row, col+i,
+                (Cell&) phenotype[row][col+i]);
+    }
+}
+
+} // namespace
+
+const Frame* render_phenotype(
+        const PhenotypeProgram& h_program,
+        const Genotype* h_genotype) {
+    DeviceData<PhenotypeProgram> program(&h_program);
+    DeviceData<Genotype> genotype;
+    // Either use the given Genotype, or use an empty one as a default.
+    if (h_genotype) {
+        genotype.copy_from_host(h_genotype);
+    } else {
+        CUDA_CALL(cudaMemset(genotype, 0, sizeof(Genotype)));
+    }
+    DeviceData<Frame> phenotype;
+
+    MakePhenotypeKernel<<<
+        1, THREADS_PER_BLOCK
+    >>>(program, genotype, phenotype);
+    return phenotype.copy_to_host();
+}
 } // namespace epigenetic_gol_kernel

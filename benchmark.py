@@ -23,15 +23,22 @@ import pandas as pd
 import seaborn as sns
 
 import kernel
+import phenotype_program
 
 NUM_SPECIES = 32
 NUM_TRIALS = 5
 NUM_ORGANISMS = 32
 NUM_GENERATIONS = 200
-NUM_LIFETIMES = NUM_SPECIES * NUM_TRIALS * NUM_ORGANISMS * NUM_GENERATIONS
+# The total number of organisms to be run in one batch by the kernel.
+POPULATION_SIZE = NUM_SPECIES * NUM_TRIALS * NUM_ORGANISMS
+NUM_LIFETIMES = POPULATION_SIZE * NUM_GENERATIONS
 
 SAMPLE_SIZE = 3
 NUM_SAMPLES = 5
+
+
+# For testing, just make NUM_SPECIES copies of the same PhenotypeProgram.
+PROGRAMS = phenotype_program.get_defaults(NUM_SPECIES)
 
 
 def sample_performance():
@@ -42,8 +49,7 @@ def sample_performance():
     goal = kernel.FitnessGoal.STILL_LIFE
 
     start = time.perf_counter()
-    # TODO: Simulate pushing PhenotypeProgram data from Python.
-    simulator.populate()
+    simulator.populate(PROGRAMS)
     for _ in range(NUM_GENERATIONS - 1):
         simulator.simulate(goal)
         simulator.propagate()

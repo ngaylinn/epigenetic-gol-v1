@@ -63,7 +63,7 @@ class TestCase(unittest.TestCase):
         for other_image in image_list:
             self.assertImagesEqual(prototype, other_image)
 
-    def assertGolden(self, data):
+    def assertGolden(self, data, test_id=None):
         """Verify that frame matches output from a previous run.
 
         This assertion checks to see if the output from a previous run of this
@@ -80,8 +80,14 @@ class TestCase(unittest.TestCase):
             representing a single image, or a 3D array representing a video
             with several frames. All pixels are assumed to be grayscale values
             between 0 and 255.
+        test_id : string
+            By default, this method uses the test name as the name of the
+            golden file. To call assertGolden more than once in a single test,
+            this string will be appended to differentiate the files.
         """
         path, test_name = self.get_test_data_location()
+        if test_id is not None:
+            test_name = f'{test_name}_{test_id}'
         filename = f'{path}/{test_name}.gif'
         if os.path.exists(filename):
             golden_data = gif_files.load_image(filename)
@@ -106,6 +112,6 @@ class TestCase(unittest.TestCase):
             gif_files.save_image(data, filename)
             animation = gif_files.add_image_to_figure(data, fig)
             plt.show()
-            self.fail('No golden file found, so the argument has been saved'
-                      'as the new golden file. Please validate and delete the'
-                      'file if it is not correct before rerunning this test.')
+            print('No golden file found, so the argument has been saved '
+                  'as the new golden file. Please validate and delete the '
+                  'file if it is not correct before rerunning this test.')

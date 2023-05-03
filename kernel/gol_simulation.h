@@ -28,6 +28,11 @@ void simulate_population(
 // Run a single Game of Life Simulation on the CPU (for testing)
 Video* simulate_phenotype(const Frame& phenotype);
 
+// Render a single phenotype (for testing)
+const Frame* render_phenotype(
+        const PhenotypeProgram& h_program,
+        const Genotype* h_genotype=nullptr);
+
 } // namespace epigenetic_gol_kernel
 
 #endif

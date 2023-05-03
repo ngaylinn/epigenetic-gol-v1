@@ -1,6 +1,8 @@
 #ifndef __PHENOTYPE_PROGRAM_H__
 #define __PHENOTYPE_PROGRAM_H__
 
+#include "environment.h"
+
 /*
  * Struct types for representing a program for interpreting genotypes.
  *
@@ -45,22 +47,32 @@ struct Argument {
     int gene_index = 0;
 
     // Restrict genes values baked into the program to bias the results
-    // read from the genotype.
-    union {
-        Scalar scalar;
-        Stamp stamp;
-    } gene_bias;
+    // read from the genotype. Only one of scalar_bias or stamp_bias is
+    // relevant for any gene, but using a union here confuses pybind11.
+    Scalar scalar_bias;
+    Stamp stamp_bias;
+
     BiasMode bias_mode = BiasMode::NONE;
 };
 
 // An exhaustive list of Operations (implemented in development.cu). When
-// adding a new apply func, make sure to add a new enum value here.
+// adding a new apply func, make sure to add a new enum value here and to the
+// Python bindings in python_module.cc.
 enum class OperationType {
-    ARRAY_1D,  // Repeat phenotype pattern in a line
-    ARRAY_2D,  // Repeat phenotype pattern in a grid
-    COPY,      // Copy the phenotype pattern once, with some offset
+    ARRAY_1D,  // Repeat coordinates in a 1D line
+    ARRAY_2D,  // Repeat coordinates in a 2D grid
+    COPY,      // Repeat coordinates once at some offset
+    CROP,      // Ignore some portion of the available space
     DRAW,      // Draw a Stamp onto the phenotype
-    TRANSLATE, // Shift phenotype pattern by some offset
+    FLIP,      // Invert coordinates horizontally and / or vertically
+    MASK,      // Ignore part of the available space using a Stamp template
+    MIRROR,    // Mirror half the space horizontally and / or vertically
+    QUARTER,   // Blank out full quarters of the available space
+    ROTATE,    // Rotate coordinates by a multiple of 90°
+    SCALE,     // Scale the coordinate system up by an integral factor
+    TEST,      // An asymmetrical test pattern for visualizing transformations
+    TILE,      // Tile the coordinate space with Stamps
+    TRANSLATE, // Shift coordinates by some offset
     SIZE
 };
 

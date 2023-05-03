@@ -10,6 +10,7 @@ import numpy as np
 
 import gif_files
 import kernel
+import phenotype_program
 from tests import test_case
 
 
@@ -43,7 +44,7 @@ class TestReproduction(test_case.TestCase):
         """Random genes have the expected distributional properties."""
         num_species, num_trials, num_organisms = 5, 5, 32
         simulator = kernel.Simulator(num_species, num_trials, num_organisms)
-        simulator.populate()
+        simulator.populate(phenotype_program.get_defaults(5))
         genotypes = simulator.get_genotypes()
         # For every trial, look at the genes of all the organisms in that
         # population and make sure they are randomized appropriately.
@@ -84,19 +85,20 @@ class TestReproduction(test_case.TestCase):
         """Collect visualizations of random genotypes to verify manually."""
         num_organisms = 8
         simulator = kernel.Simulator(1, 1, num_organisms)
-        simulator.populate()
+        simulator.populate(phenotype_program.get_defaults(1))
         genotypes = simulator.get_genotypes()
         for organism_index in range(num_organisms):
             visualize_genotype(genotypes[0][0][organism_index])
             path, test_name = self.get_test_data_location()
             plt.savefig(f'{path}/{test_name}{organism_index}.svg')
+            plt.close()
 
     def test_reproducibility(self):
         """The same seed produces the same pseudorandom genotypes."""
         def single_trial():
             result = {}
             simulator = kernel.Simulator(5, 5, 32)
-            simulator.populate()
+            simulator.populate(phenotype_program.get_defaults(5))
             result['before'] = simulator.get_genotypes()
             simulator.propagate()
             result['after'] = simulator.get_genotypes()
@@ -122,29 +124,30 @@ class TestReproduction(test_case.TestCase):
         """Genes mutate during reproduction as expected."""
         # Use a larger population size so we'll get enough mutations to
         # measure with some precision.
-        population_shape = (32, 32, 32)
-        simulator = kernel.Simulator(*population_shape)
+        num_species, num_trials, num_organisms = 32, 32, 32
+        population_size = num_species * num_trials * num_organisms
 
         # Set all genotype values to 0 and have every organism breed with
         # itself. Any non-zero values are the result of mutations.
-        genotypes = np.zeros(population_shape, dtype=kernel.Genotype)
-        parent_selections = list(range(simulator.size))
+        genotypes = np.zeros(
+            (num_species, num_trials, num_organisms), dtype=kernel.Genotype)
+        parent_selections = list(range(population_size))
         mate_selections = parent_selections
 
         # Actually do the breeding
-        genotypes = simulator.breed_genotypes(
+        genotypes = kernel.breed_population(
             genotypes, parent_selections, mate_selections)
         scalar_values = genotypes['scalar_genes'].flatten()
         stamp_values = genotypes['stamp_genes'].flatten()
 
         # Assert mutation rate is as expected.
         self.assertProportional(
-            kernel.MUTATION_RATE * kernel.NUM_SCALARS * simulator.size,
+            kernel.MUTATION_RATE * kernel.NUM_SCALARS * population_size,
             np.count_nonzero(scalar_values),
             delta=0.1)
         self.assertProportional(
             (kernel.MUTATION_RATE * kernel.NUM_STAMPS *
-             kernel.CELLS_PER_STAMP * simulator.size),
+             kernel.CELLS_PER_STAMP * population_size),
             np.count_nonzero(stamp_values),
             delta=0.01)
 
@@ -152,7 +155,7 @@ class TestReproduction(test_case.TestCase):
         """Reproduction uses crossover at the expected rate."""
         num_species, num_trials, num_organisms = 5, 5, 32
         half_organisms = int(num_organisms / 2)
-        simulator = kernel.Simulator(num_species, num_trials, num_organisms)
+        population_size = num_species * num_trials * num_organisms
 
         # Set up Genotypes and select organisms such that each parent has all
         # of its genes set to its max value and each mate has all its genes set
@@ -183,7 +186,7 @@ class TestReproduction(test_case.TestCase):
                     population_index += 1
 
         # Actually do the breeding.
-        genotypes = simulator.breed_genotypes(
+        genotypes = kernel.breed_population(
             genotypes, parent_selections, mate_selections)
         scalar_values = genotypes['scalar_genes'].flatten()
         stamp_values = genotypes['stamp_genes'].flatten()
@@ -197,12 +200,12 @@ class TestReproduction(test_case.TestCase):
         parent_gene_rate = (
             (1 - kernel.CROSSOVER_RATE) + 0.5 * kernel.CROSSOVER_RATE)
         self.assertProportional(
-            parent_gene_rate * kernel.NUM_SCALARS * simulator.size,
+            parent_gene_rate * kernel.NUM_SCALARS * population_size,
             np.count_nonzero(scalar_values),
             delta=0.02)
         self.assertProportional(
             (parent_gene_rate * kernel.NUM_STAMPS * kernel.CELLS_PER_STAMP *
-             simulator.size),
+             population_size),
             np.count_nonzero(stamp_values),
             delta=0.02)
 
