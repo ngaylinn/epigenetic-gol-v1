@@ -22,8 +22,9 @@ __device__ __host__ void select(
         unsigned int* selections) {
     // Imagine a roulette wheel, where each individual is assigned a wedge that
     // is proportional to its fitness. The full circumference of that wheel is
-    // the total fitness for the population.
-    int total_fitness = 0;
+    // the total fitness for the population. This computation uses floats to
+    // avoid edge cases when the input does not divide evenly.
+    float total_fitness = 0;
     for (int i = 0; i < batch_size; i++) {
         total_fitness += fitness_scores[i];
     }
@@ -32,7 +33,7 @@ __device__ __host__ void select(
     if (total_fitness == 0) {
         for (int i = 0; i < batch_size; i++) {
             // Note that we add batch_offset here to switch from batch-relative
-            // indiexing to population-relative indexing.
+            // indexing to population-relative indexing.
             selections[i] = batch_offset + i;
         }
         return;
@@ -40,8 +41,9 @@ __device__ __host__ void select(
 
     // Pick batch_size equidistant sampling points around the edge of that
     // roulette wheel, starting at a random location.
-    const int sample_period = total_fitness / batch_size;
-    const int sample_offset = random_value % sample_period;
+    const float sample_period = total_fitness / batch_size;
+    const float sample_offset = float(
+        double(random_value) * sample_period / double(long(1)<<32));
 
     // Walk around the edge of the roulette wheel to figure out which wedge
     // contains each sample point. The individual corresponding to that wedge /
@@ -58,12 +60,12 @@ __device__ __host__ void select(
     // first iteration of the loop below.
     int selection_index = -1;
     for (int i = 0; i < batch_size; i++) {
-        const int fitness_threshold = sample_offset + i * sample_period;
+        float sample_point = sample_offset + i * sample_period;
         // Step through the wedges one at a time to find the one that overlaps
         // with this sample point. This could happen 0 times if the last wedge
         // is so big it contains this next sample point, too, or it could
         // happen many times, if there are many thin wedges to pass over.
-        while (fitness_so_far < fitness_threshold) {
+        while (sample_point > fitness_so_far) {
             selection_index += 1;
             fitness_so_far += fitness_scores[selection_index];
         }
@@ -123,11 +125,12 @@ void select_from_population(
     CUDA_CHECK_ERROR();
 }
 
-std::vector<unsigned int> select(const std::vector<Fitness> scores) {
+std::vector<unsigned int> select(
+        const std::vector<Fitness> scores,
+        const unsigned int random_value) {
     int batch_size = scores.size();
     std::vector<unsigned int> result(batch_size);
-    // TODO: Get a proper random number.
-    select(batch_size, 0, scores.data(), 42, result.data());
+    select(batch_size, 0, scores.data(), random_value, result.data());
     return result;
 }
 

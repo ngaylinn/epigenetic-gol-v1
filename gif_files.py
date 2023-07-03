@@ -43,10 +43,9 @@ def save_image(data, filename):
     if data.ndim == 2:
         make_image(data).save(filename)
         return
-    n_frames = data.shape[0]
     images = [make_image(frame) for frame in data]
     durations = [MILLISECONDS_FOR_PHENOTYPE]
-    durations.extend([MILLISECONDS_PER_FRAME] * n_frames)
+    durations.extend([MILLISECONDS_PER_FRAME] * (len(images) - 1))
     images[0].save(
         filename, save_all=True, append_images=images[1:], loop=0,
         duration=durations)
@@ -78,11 +77,21 @@ def load_image(filename):
         frames = []
         for frame in range(n_frames):
             image.seek(frame)
-            frames.append(make_array(image))
+            # When PIL exports gif files, it merges adjacent frames that are
+            # equivalent and just increases the duration of the static frame.
+            # Unforuntately, there's no way to disable this. To restore the
+            # original frames, then, we must calculate how many frames got
+            # merged using the known duration per frame.
+            if frame > 0:
+                repeats = image.info['duration'] // MILLISECONDS_PER_FRAME
+            else:
+                repeats = 1
+            for _ in range(repeats):
+                frames.append(make_array(image))
         return np.array(frames)
 
 
-def add_image_to_figure(data, fig):
+def add_image_to_figure(data, fig, axis):
     """Display an image in an existing PLT figure.
 
     Parameters
@@ -98,7 +107,10 @@ def add_image_to_figure(data, fig):
     object that the caller is responsible for holding onto until calling
     plt.show().
     """
-    plt.axis('off')
+    axis.spines[:].set_visible(True)
+    plt.setp(axis.spines.values(), color='#ff0000')
+    plt.setp(axis.spines.values(), linewidth=1)
+
     format_options = {
         'cmap': 'gray',
         'vmin': 0,
@@ -122,5 +134,6 @@ def add_image_to_figure(data, fig):
 
 def display_image(data):
     fig = plt.figure()
-    anim = add_image_to_figure(data, fig)
+    axis = fig.add_subplot(1, 1, 1)
+    anim = add_image_to_figure(data, fig, axis)
     plt.show()

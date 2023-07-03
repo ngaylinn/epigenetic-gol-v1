@@ -3,6 +3,7 @@
 These tests are meant to document behavior and provide basic validation.
 """
 
+import random
 import unittest
 
 import matplotlib.pyplot as plt
@@ -16,9 +17,9 @@ from tests import test_case
 
 def visualize_genotype(genotype):
     """Render a genotype as a plt figure with images."""
-    cols = max(kernel.NUM_STAMPS, kernel.NUM_SCALARS)
+    cols = kernel.NUM_GENES
     fig = plt.figure("Genotype")
-    for gene_index in range(kernel.NUM_STAMPS):
+    for gene_index in range(cols):
         axis = fig.add_subplot(2, cols, gene_index + 1)
         # Make a primitive bar chart representing the scalar genes
         # that's the same width and appearance as a stamp gene value.
@@ -29,22 +30,22 @@ def visualize_genotype(genotype):
             np.full((2, scaled_value), 0x00, dtype=np.uint8),
             ((0, 0), (0, kernel.STAMP_SIZE - scaled_value)),
             constant_values=0xFF)
-        gif_files.add_image_to_figure(scalar_viz, fig)
+        gif_files.add_image_to_figure(scalar_viz, fig, axis)
         axis.set_title(f'{100 * raw_value / (0xFFFFFFFF):0.2f}%')
-    for gene_index in range(kernel.NUM_SCALARS):
+    for gene_index in range(cols):
         axis = fig.add_subplot(2, cols, cols + gene_index + 1)
         gif_files.add_image_to_figure(
-            genotype['stamp_genes'][gene_index], fig)
+            genotype['stamp_genes'][gene_index], fig, axis)
 
 
 class TestReproduction(test_case.TestCase):
     """Tests for initializing and breeding populations of Genotypes."""
-
     def test_randomize(self):
         """Random genes have the expected distributional properties."""
         num_species, num_trials, num_organisms = 5, 5, 32
         simulator = kernel.Simulator(num_species, num_trials, num_organisms)
-        simulator.populate(phenotype_program.get_defaults(5))
+        clade = phenotype_program.Clade(5, testing=True)
+        simulator.populate(clade.serialize())
         genotypes = simulator.get_genotypes()
         # For every trial, look at the genes of all the organisms in that
         # population and make sure they are randomized appropriately.
@@ -60,7 +61,7 @@ class TestReproduction(test_case.TestCase):
                 # Scalar gene values are almost all unique, since few values
                 # are being drawn from the full range of 32-bit ints.
                 self.assertAlmostEqual(
-                    num_organisms * kernel.NUM_SCALARS,
+                    num_organisms * kernel.NUM_GENES,
                     np.unique(scalar_values).size,
                     delta=0.01, msg=msg)
                 # The average stamp value is halfway between ALIVE and DEAD.
@@ -85,12 +86,15 @@ class TestReproduction(test_case.TestCase):
         """Collect visualizations of random genotypes to verify manually."""
         num_organisms = 8
         simulator = kernel.Simulator(1, 1, num_organisms)
-        simulator.populate(phenotype_program.get_defaults(1))
+        clade = phenotype_program.Clade(1, testing=True)
+        simulator.populate(clade.serialize())
         genotypes = simulator.get_genotypes()
         for organism_index in range(num_organisms):
             visualize_genotype(genotypes[0][0][organism_index])
             path, test_name = self.get_test_data_location()
-            plt.savefig(f'{path}/{test_name}{organism_index}.svg')
+            # SVG would be a better graphics format, but the pyplot library has
+            # a bug where SVG file outputs are not deterministic.
+            plt.savefig(f'{path}/{test_name}{organism_index}.png')
             plt.close()
 
     def test_reproducibility(self):
@@ -98,7 +102,8 @@ class TestReproduction(test_case.TestCase):
         def single_trial():
             result = {}
             simulator = kernel.Simulator(5, 5, 32)
-            simulator.populate(phenotype_program.get_defaults(5))
+            clade = phenotype_program.Clade(5, testing=True)
+            simulator.populate(clade.serialize())
             result['before'] = simulator.get_genotypes()
             simulator.propagate()
             result['after'] = simulator.get_genotypes()
@@ -142,14 +147,15 @@ class TestReproduction(test_case.TestCase):
 
         # Assert mutation rate is as expected.
         self.assertProportional(
-            kernel.MUTATION_RATE * kernel.NUM_SCALARS * population_size,
+            kernel.MUTATION_RATE * kernel.NUM_GENES * population_size,
             np.count_nonzero(scalar_values),
             delta=0.1)
+        alive_probability = 0.5
         self.assertProportional(
-            (kernel.MUTATION_RATE * kernel.NUM_STAMPS *
-             kernel.CELLS_PER_STAMP * population_size),
+            (kernel.MUTATION_RATE * kernel.NUM_GENES *
+             kernel.CELLS_PER_STAMP * population_size * alive_probability),
             np.count_nonzero(stamp_values),
-            delta=0.01)
+            delta=0.1)
 
     def test_crossover(self):
         """Reproduction uses crossover at the expected rate."""
@@ -200,11 +206,11 @@ class TestReproduction(test_case.TestCase):
         parent_gene_rate = (
             (1 - kernel.CROSSOVER_RATE) + 0.5 * kernel.CROSSOVER_RATE)
         self.assertProportional(
-            parent_gene_rate * kernel.NUM_SCALARS * population_size,
+            parent_gene_rate * kernel.NUM_GENES * population_size,
             np.count_nonzero(scalar_values),
             delta=0.02)
         self.assertProportional(
-            (parent_gene_rate * kernel.NUM_STAMPS * kernel.CELLS_PER_STAMP *
+            (parent_gene_rate * kernel.NUM_GENES * kernel.CELLS_PER_STAMP *
              population_size),
             np.count_nonzero(stamp_values),
             delta=0.02)

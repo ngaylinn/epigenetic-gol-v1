@@ -1,10 +1,5 @@
 #include "reproduction.h"
 
-//#include <algorithm>
-//#include <limits>
-//#include <numeric>
-//#include <random>
-
 #include "cuda_utils.cuh"
 
 namespace epigenetic_gol_kernel {
@@ -26,11 +21,11 @@ __global__ void RandomizeKernel(
     curandState rng = rngs[population_index];
     Genotype& genotype = genotypes[population_index];
 
-    for (int i = 0; i < NUM_SCALARS; i++) {
+    for (int i = 0; i < NUM_GENES; i++) {
         genotype.scalar_genes[i] = curand(&rng);
     }
 
-    for (int i = 0; i < NUM_STAMPS; i++) {
+    for (int i = 0; i < NUM_GENES; i++) {
         const float density = curand_uniform(&rng);
         for (int row = 0; row < STAMP_SIZE; row++) {
             for (int col = 0; col < STAMP_SIZE; col++) {
@@ -60,10 +55,10 @@ __global__ void ReproduceKernel(
     Genotype& output_genotype = output_genotypes[population_index];
 
     // Consider drawing gene values from mate instead of parent.
-    const bool should_crossover = 
+    const bool should_crossover =
         mate_index != parent_index && coin_flip(&rng, CROSSOVER_RATE);
 
-    for (int i = 0; i < NUM_SCALARS; i++) {
+    for (int i = 0; i < NUM_GENES; i++) {
         // Which organism should we draw gene data from? If we're doing asexual
         // reproduction, just take from the parent. If we're doing sexual
         // reproduction, then for each scalar it has a 50% chance of coming
@@ -77,7 +72,7 @@ __global__ void ReproduceKernel(
             ? curand(&rng) : input_genotype.scalar_genes[i];
     }
 
-    for (int i = 0; i < NUM_STAMPS; i++) {
+    for (int i = 0; i < NUM_GENES; i++) {
         // For stamps, crossover involves mixing together half of one stamp
         // gene with half of another. Here we randomly determine which halves
         // to recombine.
@@ -99,7 +94,7 @@ __global__ void ReproduceKernel(
                 // Set the gene value, either from source or a random mutation.
                 output_genotype.stamp_genes[i][row][col] =
                     coin_flip(&rng, MUTATION_RATE)
-                    ? (Cell) (curand(&rng) & 0xFF)
+                    ? (coin_flip(&rng) ? Cell::ALIVE : Cell::DEAD)
                     : input_genotype.stamp_genes[i][row][col];
             }
         }
@@ -160,7 +155,8 @@ const Genotype* breed_population(
             population_size, h_parent_selections.data());
     DeviceData<unsigned int> mate_selections(
             population_size, h_mate_selections.data());
-    CurandStates rngs(population_size);
+    DeviceData<curandState> rngs(population_size);
+    seed_rngs(rngs, population_size, 42);
 
     breed_population(
             population_size, parent_selections, mate_selections,

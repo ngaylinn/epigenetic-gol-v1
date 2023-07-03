@@ -1,6 +1,8 @@
 #ifndef __PHENOTYPE_PROGRAM_H__
 #define __PHENOTYPE_PROGRAM_H__
 
+#include <cstdint>
+
 #include "environment.h"
 
 /*
@@ -26,12 +28,16 @@ constexpr unsigned int CELLS_PER_STAMP = STAMP_SIZE * STAMP_SIZE;
 typedef Cell Stamp[STAMP_SIZE][STAMP_SIZE];
 
 // Each organism's genotype is just a collection of Stamp and Scalar genes.
-constexpr unsigned int NUM_SCALARS = 4;
-constexpr unsigned int NUM_STAMPS = 4;
+constexpr unsigned int NUM_GENES = 4;
 struct Genotype {
-    Scalar scalar_genes[NUM_SCALARS];
-    Stamp stamp_genes[NUM_STAMPS];
+    Scalar scalar_genes[NUM_GENES];
+    Stamp stamp_genes[NUM_GENES];
 };
+
+// Fixed allocation sizes for PhenotypeProgram programs.
+constexpr unsigned int MAX_DRAWS = 4;
+constexpr unsigned int MAX_TRANSFORMS = 4;
+constexpr unsigned int MAX_ARGUMENTS = 2;
 
 // An enum representing how to bias data read from the genotype. This may get
 // more interesting in future versions.
@@ -41,31 +47,17 @@ enum class BiasMode {
     SIZE
 };
 
-// Bind a value from the genotype to an argument for an Operation function.
-struct Argument {
-    // Which gene to read from.
-    int gene_index = 0;
-
-    // Restrict genes values baked into the program to bias the results
-    // read from the genotype. Only one of scalar_bias or stamp_bias is
-    // relevant for any gene, but using a union here confuses pybind11.
-    Scalar scalar_bias;
-    Stamp stamp_bias;
-
-    BiasMode bias_mode = BiasMode::NONE;
-};
-
 // An exhaustive list of Operations (implemented in development.cu). When
 // adding a new apply func, make sure to add a new enum value here and to the
 // Python bindings in python_module.cc.
-enum class OperationType {
+enum class TransformType {
+    NONE,
     ARRAY_1D,  // Repeat coordinates in a 1D line
     ARRAY_2D,  // Repeat coordinates in a 2D grid
     COPY,      // Repeat coordinates once at some offset
     CROP,      // Ignore some portion of the available space
     DRAW,      // Draw a Stamp onto the phenotype
     FLIP,      // Invert coordinates horizontally and / or vertically
-    MASK,      // Ignore part of the available space using a Stamp template
     MIRROR,    // Mirror half the space horizontally and / or vertically
     QUARTER,   // Blank out full quarters of the available space
     ROTATE,    // Rotate coordinates by a multiple of 90°
@@ -76,24 +68,41 @@ enum class OperationType {
     SIZE
 };
 
-// Fixed allocation sizes for PhenotypeProgram programs.
-constexpr unsigned int MAX_OPERATIONS = 10;
-constexpr unsigned int MAX_ARGUMENTS = 4;
-
-// Program counter constants indicating where to start and stop.
-constexpr unsigned int START_INDEX = 0;
-constexpr unsigned int STOP_INDEX = MAX_OPERATIONS;
-
-// A description of a single function call with arguments.
-struct Operation {
-    OperationType type = OperationType::SIZE;
-    Argument args[MAX_ARGUMENTS] = {};
-    unsigned int next_op_index = STOP_INDEX;
+struct ScalarArgument {
+    uint8_t gene_index = 0;
+    Scalar bias;
+    BiasMode bias_mode = BiasMode::NONE;
 };
 
-// An table of operations used to construct a phenotype.
+struct TransformOperation {
+    // TODO: Consistent naming with ComposeMode?
+    TransformType type = TransformType::NONE;
+    ScalarArgument args[MAX_ARGUMENTS] = {};
+};
+
+enum class ComposeMode {
+    NONE,
+    OR,
+    XOR,
+    AND,
+    SIZE
+};
+
+struct StampArgument {
+    uint8_t gene_index = 0;
+    Stamp bias;
+    BiasMode bias_mode = BiasMode::NONE;
+};
+
+struct DrawOperation {
+    ComposeMode compose_mode = ComposeMode::NONE;
+    StampArgument stamp;
+    TransformOperation global_transforms[MAX_TRANSFORMS] = {};
+    TransformOperation stamp_transforms[MAX_TRANSFORMS] = {};
+};
+
 struct PhenotypeProgram {
-    Operation ops[MAX_OPERATIONS] = {};
+    DrawOperation draw_ops[MAX_DRAWS] = {};
 };
 
 } // namespace epigenetic_gol_kernel

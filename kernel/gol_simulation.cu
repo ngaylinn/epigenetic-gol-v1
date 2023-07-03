@@ -1,3 +1,4 @@
+#include "environment.h"
 #include "gol_simulation.h"
 
 #include <cub/cub.cuh>
@@ -7,11 +8,8 @@
 #include "fitness.cuh"
 
 namespace epigenetic_gol_kernel {
-namespace {
 
-constexpr int CELLS_PER_THREAD = 8;
-constexpr int REPEATS_PER_ROW = WORLD_SIZE / CELLS_PER_THREAD;
-constexpr int THREADS_PER_BLOCK = WORLD_SIZE * REPEATS_PER_ROW;
+namespace {
 
 __device__ __host__ Cell get_next_state(
         const int& curr_row, const int& curr_col, const Frame& last_frame) {
@@ -40,13 +38,15 @@ __device__ __host__ Cell get_next_state(
         ? Cell::ALIVE : Cell::DEAD;
 }
 
+// This kernel is templatized so that some logic can be resolved before the
+// kernel is launched instead of having if / switch statements that happen on
+// every iteration of the innermost loop (which has high latency costs).
+template<FitnessGoal GOAL, bool RECORD>
 __global__ void GolKernel(
-        const FitnessGoal goal,
         const PhenotypeProgram* programs,
         const Genotype* genotypes,
-        Video* videos,
         Fitness* fitness_scores,
-        bool record) {
+        Video* videos=nullptr) {
     const int& species_index = blockIdx.y;
     const int population_index = blockIdx.y * gridDim.x + blockIdx.x;
     const int row = threadIdx.x / REPEATS_PER_ROW;
@@ -54,7 +54,6 @@ __global__ void GolKernel(
 
     const PhenotypeProgram& program = programs[species_index];
     const Genotype& genotype = genotypes[population_index];
-    Video& video = videos[population_index];
     Fitness& fitness = fitness_scores[population_index];
 
     // Calculating the next frame of a Game of Life simulation requires looking
@@ -67,16 +66,15 @@ __global__ void GolKernel(
     __shared__ Frame last_frame;
     Cell curr_frame[CELLS_PER_THREAD];
 
-    // Each frame may contribute to overall fitness. This function doesn't
-    // always record all those frames, so we compute fitness incrementally
-    // frame by frame, storing partial work here.
-    PartialFitness partial_fitness[CELLS_PER_THREAD];
+    FitnessObserver<GOAL> fitness_observer;
 
     // Interpret this organism's genotype to generate the phenotype, which is
     // the first frame of the simulation.
     for (int i = 0; i < CELLS_PER_THREAD; i++) {
-        // TODO: Pass last_frame as a workspace for the stack? It only has
-        // depth one, but that's enough for most simple compositions.
+        // TODO: This operation can be quite expensive. To further optimize
+        // this, try "compiling" the phenotype program once per species trial.
+        // This could reduce the overhead of interpreting the program and
+        // deciding which operations to call on every iteration.
         make_phenotype(program, genotype, row, col+i, curr_frame[i]);
     }
 
@@ -93,16 +91,14 @@ __global__ void GolKernel(
         memcpy(&last_frame[row][col], curr_frame, sizeof(curr_frame));
         __syncthreads();
 
-        // If recording, save a copy of each frame to global memory.
-        if (record) {
-            memcpy(&video[step][row][col], curr_frame, sizeof(curr_frame));
+        // Record all simulations on demand. This check will be optimized away
+        // by the compiler.
+        if (RECORD) {
+            memcpy(&videos[population_index][step][row][col],
+                    curr_frame, sizeof(curr_frame));
         }
 
-        // Compute the fitness contribution of each frame as we go along.
-        for (int i = 0; i < CELLS_PER_THREAD; i++) {
-            update_fitness(
-                    step, row, col+i, curr_frame[i], goal, partial_fitness[i]);
-        }
+        fitness_observer.observe(step, row, col, curr_frame, last_frame);
 
         // If we've already computed, evaluated, and saved the last frame, then
         // stop here before computing another one.
@@ -115,38 +111,76 @@ __global__ void GolKernel(
         __syncthreads();
     }
 
-    // Finalize all the fitness scores.
-    for (int i = 0; i < CELLS_PER_THREAD; i++) {
-        finalize_fitness(goal, partial_fitness[i]);
-    }
-
-    // Sum fitness contributions from each thread.
-    auto reduce = cub::BlockReduce<Fitness, THREADS_PER_BLOCK>();
-    int sum = reduce.Sum((Fitness(&)[CELLS_PER_THREAD]) partial_fitness);
-
-    // Save the final result to global memory to return to the host.
-    if (threadIdx.x == 0) {
-        fitness = sum;
-    }
+    fitness_observer.reduce(&fitness);
 }
 
 } // namespace
 
+// RECORD is passed as a template option here mostly to simplify launching the
+// GolKernel. If it was passed as a regular argument, it would double the
+// number of cases in the switch statement.
+template<bool RECORD>
 void simulate_population(
         const unsigned int population_size,
         const unsigned int num_species,
         const FitnessGoal& goal,
         const PhenotypeProgram* programs,
         const Genotype* genotypes,
-        Video* videos,
         Fitness* fitness_scores,
-        bool record) {
-    GolKernel<<<
-        { population_size / num_species, num_species },
-        THREADS_PER_BLOCK
-    >>>(goal, programs, genotypes, videos, fitness_scores, record);
+        Video* videos) {
+    dim3 grid = { population_size / num_species, num_species };
+    switch (goal) {
+        case FitnessGoal::EXPLODE:
+            GolKernel<FitnessGoal::EXPLODE, RECORD><<<
+                grid, THREADS_PER_BLOCK
+            >>>(programs, genotypes, fitness_scores, videos);
+            break;
+        case FitnessGoal::GLIDERS:
+            GolKernel<FitnessGoal::GLIDERS, RECORD><<<
+                grid, THREADS_PER_BLOCK
+            >>>(programs, genotypes, fitness_scores, videos);
+            break;
+        case FitnessGoal::LEFT_TO_RIGHT:
+            GolKernel<FitnessGoal::LEFT_TO_RIGHT, RECORD><<<
+                grid, THREADS_PER_BLOCK
+            >>>(programs, genotypes, fitness_scores, videos);
+            break;
+        case FitnessGoal::STILL_LIFE:
+            GolKernel<FitnessGoal::STILL_LIFE, RECORD><<<
+                grid, THREADS_PER_BLOCK
+            >>>(programs, genotypes, fitness_scores, videos);
+            break;
+        case FitnessGoal::SYMMETRY:
+            GolKernel<FitnessGoal::SYMMETRY, RECORD><<<
+                grid, THREADS_PER_BLOCK
+            >>>(programs, genotypes, fitness_scores, videos);
+            break;
+        case FitnessGoal::THREE_CYCLE:
+            GolKernel<FitnessGoal::THREE_CYCLE, RECORD><<<
+                grid, THREADS_PER_BLOCK
+            >>>(programs, genotypes, fitness_scores, videos);
+            break;
+        case FitnessGoal::TWO_CYCLE:
+            GolKernel<FitnessGoal::TWO_CYCLE, RECORD><<<
+                grid, THREADS_PER_BLOCK
+            >>>(programs, genotypes, fitness_scores, videos);
+            break;
+        default:
+            return;
+    }
     CUDA_CHECK_ERROR();
 }
+
+// Instantiate versions of this function with and without recording.
+template void simulate_population<true>(
+        const unsigned int population_size, const unsigned int num_species,
+        const FitnessGoal& goal, const PhenotypeProgram* programs,
+        const Genotype* genotypes, Fitness* fitness_scores, Video* videos);
+
+template void simulate_population<false>(
+        const unsigned int population_size, const unsigned int num_species,
+        const FitnessGoal& goal, const PhenotypeProgram* programs,
+        const Genotype* genotypes, Fitness* fitness_scores, Video* videos);
 
 Video* simulate_phenotype(const Frame& phenotype) {
     Video* video = (Video*) new Video;
@@ -156,7 +190,7 @@ Video* simulate_phenotype(const Frame& phenotype) {
     for (int step = 1; step < NUM_STEPS; step++) {
         for (int row = 0; row < WORLD_SIZE; row++) {
             for (int col = 0; col < WORLD_SIZE; col++) {
-                (*video)[step][row][col] = 
+                (*video)[step][row][col] =
                     get_next_state(row, col, (*video)[step-1]);
             }
         }
@@ -203,4 +237,14 @@ const Frame* render_phenotype(
     >>>(program, genotype, phenotype);
     return phenotype.copy_to_host();
 }
+
+Video* simulate_organism(
+        const PhenotypeProgram& h_program,
+        const Genotype& h_genotype) {
+    const Frame* frame = render_phenotype(h_program, &h_genotype);
+    Video* video = simulate_phenotype(*frame);
+    delete[] frame;
+    return video;
+}
+
 } // namespace epigenetic_gol_kernel

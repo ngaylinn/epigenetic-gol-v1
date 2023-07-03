@@ -99,18 +99,19 @@ class TestCase(unittest.TestCase):
             fig = plt.figure(message)
             axis = fig.add_subplot(1, 2, 1)
             axis.set_title('argument')
-            a1 = gif_files.add_image_to_figure(data, fig)
+            a1 = gif_files.add_image_to_figure(data, fig, axis)
             axis = fig.add_subplot(1, 2, 2)
             axis.set_title('golden')
-            a2 = gif_files.add_image_to_figure(golden_data, fig)
+            a2 = gif_files.add_image_to_figure(golden_data, fig, axis)
             plt.show()
             self.fail(message)
         else:
             # If the golden file wasn't found, the directory for golden files
             # might not even be set up yet, so make sure it exists.
-            fig = plt.figure(f'{test_name}: Please manually verify.')
             gif_files.save_image(data, filename)
-            animation = gif_files.add_image_to_figure(data, fig)
+            fig = plt.figure(f'{test_name}: Please manually verify.')
+            axis = fig.add_subplot(1, 1, 1)
+            animation = gif_files.add_image_to_figure(data, fig, axis)
             plt.show()
             print('No golden file found, so the argument has been saved '
                   'as the new golden file. Please validate and delete the '

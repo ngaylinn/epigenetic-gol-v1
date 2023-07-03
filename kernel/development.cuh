@@ -18,7 +18,7 @@ namespace epigenetic_gol_kernel {
 // Calculate one cell value in an organism phenotype.
 __device__ void make_phenotype(
         const PhenotypeProgram& program, const Genotype& genotype,
-        int row, int col, Cell& cell);
+        const int& row, const int& col, Cell& cell);
 
 } // namespace epigenetic_gol_kernel
 

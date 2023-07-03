@@ -33,15 +33,6 @@ PINWHEEL = np.array(
     dtype=np.uint8)
 
 
-def get_video_list(simulator):
-    """Flatten all species and trials into a 1D list of videos."""
-    videos = np.reshape(
-        simulator.get_videos(),
-        (simulator.size,
-         kernel.NUM_STEPS, kernel.WORLD_SIZE, kernel.WORLD_SIZE))
-    return videos.tolist()
-
-
 class TestSimulation(test_case.TestCase):
     """Sanity checks for running Game of Life simulations."""
 
@@ -51,9 +42,16 @@ class TestSimulation(test_case.TestCase):
             result = {}
             goal = kernel.FitnessGoal.STILL_LIFE
             simulator = kernel.Simulator(3, 3, 32)
-            simulator.populate(phenotype_program.get_defaults(3))
-            simulator.simulate(goal, record=True)
-            result['videos'] = get_video_list(simulator)
+            clade = phenotype_program.Clade(3, testing=True)
+            simulator.populate(clade.serialize())
+            videos = simulator.simulate_and_record(goal)
+            # Flatten out the collection of videos orgnanized by species,
+            # trial, and organism into a flat list with one video for each
+            # individual in the population.
+            result['videos'] = np.reshape(
+                videos,
+                (simulator.size,
+                 kernel.NUM_STEPS, kernel.WORLD_SIZE, kernel.WORLD_SIZE))
             result['fitness'] = simulator.get_fitness_scores()
             return result
         num_trials = 3
@@ -68,9 +66,10 @@ class TestSimulation(test_case.TestCase):
         """The fancy GPU-optimized simulation matches the basic one."""
         goal = kernel.FitnessGoal.STILL_LIFE
         simulator = kernel.Simulator(3, 3, 32)
-        simulator.populate(phenotype_program.get_defaults(3))
-        simulator.simulate(goal, record=True)
-        gpu_video = get_video_list(simulator)[0]
+        clade = phenotype_program.Clade(3, testing=True)
+        simulator.populate(clade.serialize())
+        # Grab just the first video from the GPU (the rest should be the same)
+        gpu_video = simulator.simulate_and_record(goal)[0][0][0]
         # Run the CPU simulation with the same randomly generated phenotype we
         # used on the GPU, but then recompute the rest of the video.
         cpu_video = kernel.simulate_phenotype(gpu_video[0])

@@ -1,3 +1,5 @@
+#include "environment.h"
+#include "phenotype_program.h"
 #include "simulator.h"
 
 #include <vector>
@@ -12,26 +14,22 @@ namespace epigenetic_gol_kernel {
 class Simulator::DeviceAllocations {
     friend class Simulator;
     private:
-        CurandStates rngs;
+        DeviceData<curandState> rngs;
         DeviceData<PhenotypeProgram> programs;
         DeviceData<Genotype> curr_gen_genotypes;
         DeviceData<Genotype> next_gen_genotypes;
         DeviceData<unsigned int> parent_selections;
         DeviceData<unsigned int> mate_selections;
         DeviceData<Fitness> fitness_scores;
-        DeviceData<Video> videos;
 
         DeviceAllocations(int num_species, int size)
-            : rngs(size),
-              programs(num_species),
+            : programs(num_species),
+              rngs(size),
               curr_gen_genotypes(size),
               next_gen_genotypes(size),
               parent_selections(size),
               mate_selections(size),
-              fitness_scores(size),
-              videos(size) {
-            rngs.reset();
-        }
+              fitness_scores(size) {}
 };
 
 // TODO: Consider running simulations in parallel with breeding
@@ -45,6 +43,7 @@ Simulator::Simulator(
       num_organisms(num_organisms),
       size(num_species * num_trials * num_organisms) {
     d = new DeviceAllocations(num_species, size);
+    seed(42);
 }
 
 Simulator::~Simulator() {
@@ -70,15 +69,35 @@ void Simulator::propagate() {
             d->curr_gen_genotypes, d->next_gen_genotypes, d->rngs);
 
     // After generationg next_gen_genotypes from curr_gen_genotypes, swap the
-    // two pointers so that the the new data is "current" and the old data is
-    // available for computing the next generation.
+    // two pointers so that the the new data is "current" and the old data may
+    // be overwritten to compute the next generation.
     d->curr_gen_genotypes.swap(d->next_gen_genotypes);
 }
 
-void Simulator::simulate(FitnessGoal goal, bool record) {
-    simulate_population(
+void Simulator::simulate(const FitnessGoal& goal) {
+    simulate_population<false>(
             size, num_species, goal, d->programs,
-            d->curr_gen_genotypes, d->videos, d->fitness_scores, record);
+            d->curr_gen_genotypes, d->fitness_scores, nullptr);
+}
+
+Video* Simulator::simulate_and_record(const FitnessGoal& goal) {
+    DeviceData<Video> videos(size);
+    simulate_population<true>(
+            size, num_species, goal, d->programs,
+            d->curr_gen_genotypes, d->fitness_scores, videos);
+    return videos.copy_to_host();
+}
+
+void Simulator::evolve(
+        const PhenotypeProgram* h_programs,
+        const FitnessGoal& goal,
+        const int num_generations) {
+    populate(h_programs);
+    for (int i = 0; i < num_generations - 1; i++) {
+        simulate(goal);
+        propagate();
+    }
+    simulate(goal);
 }
 
 
@@ -90,11 +109,6 @@ const Fitness* Simulator::get_fitness_scores() const {
     return d->fitness_scores.copy_to_host();
 }
 
-// TODO: Consider optimizing this to only copy the videos you want.
-const Video* Simulator::get_videos() const {
-    return d->videos.copy_to_host();
-}
-
 const Genotype* Simulator::get_genotypes() const {
     return d->curr_gen_genotypes.copy_to_host();
 }
@@ -104,16 +118,8 @@ const Genotype* Simulator::get_genotypes() const {
 // Methods to manage RNG state
 // ---------------------------------------------------------------------------
 
-const std::vector<unsigned char> Simulator::get_state() const {
-    return d->rngs.get_state();
-}
-
-void Simulator::restore_state(std::vector<unsigned char> state) {
-    d->rngs.restore_state(state);
-}
-
-void Simulator::reset_state() {
-    d->rngs.reset();
+void Simulator::seed(const unsigned int seed_value) {
+    seed_rngs(d->rngs, size, seed_value);
 }
 
 } // namespace epigenetic_gol_kernel
@@ -129,10 +135,10 @@ int main(int argc, char* argv[]) {
     FitnessGoal goal = FitnessGoal::STILL_LIFE;
     PhenotypeProgram programs[32];
     for (int i = 0; i < 32; i++) {
-        programs[i].ops[0].type = OperationType::TILE;
-        programs[i].ops[0].next_op_index = 1;
-        programs[i].ops[1].type = OperationType::DRAW;
-        programs[i].ops[1].next_op_index = STOP_INDEX;
+        // TODO: Test this works as intended.
+        programs[i].draw_ops[0].compose_mode = ComposeMode::OR;
+        programs[i].draw_ops[0].global_transforms[0].type =
+            TransformType::TILE;
     }
     simulator.populate(programs);
     for (int i = 0; i < 199; i++) {
@@ -141,8 +147,6 @@ int main(int argc, char* argv[]) {
         // Include this GPU->host data transfer that the real project requires.
         simulator.get_fitness_scores();
     }
-    simulator.simulate(goal, true);
-    // Include this GPU->host data transfer that the real project requires.
-    simulator.get_videos();
+    simulator.simulate(goal);
     return 0;
 }

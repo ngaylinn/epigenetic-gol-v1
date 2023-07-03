@@ -28,9 +28,9 @@ void select_from_population(
  * implementation, though they use different sources of randomness and may
  * produce inconsistent results.
  */
-// TODO: Where does randomness come from? Could pass in from Python, or create
-// a host-side RNG in C++ to be managed with the simulator state.
-std::vector<unsigned int> select(const std::vector<Fitness> scores);
+std::vector<unsigned int> select(
+		const std::vector<Fitness> scores,
+		const unsigned int random_value);
 
 } // namespace epigenetic_gol_kernel
 

@@ -3,17 +3,24 @@
 /CMakeFiles/
 Makefile
 cmake_install.cmake
+compile_commands.json
+.clangd
 
-# Ignore any object files produced by compliation
+# Ignore compiled python module outputs
 *.so
+*.pyi
 
-# Ignore vim's swap files files.
+# Ignore vim's swap and session files.
 *.sw?
+*.vim
 
-# Ignore Python's cache directories
+# Ignore local cache directories
 __pycache__/
+.cache/
 
 # Ignore generated output from this project
 cpp_demo
 /output/
-/tests/*/
+
+# Ignore my hand-captured samples
+/nice/

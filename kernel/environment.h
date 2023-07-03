@@ -16,6 +16,11 @@ constexpr unsigned int WORLD_SIZE = 64;
 // The number of iterations to run the simulation for.
 constexpr unsigned int NUM_STEPS = 100;
 
+// Constants defining how to break down the world into blocks of threads.
+constexpr int CELLS_PER_THREAD = 8;
+constexpr int REPEATS_PER_ROW = WORLD_SIZE / CELLS_PER_THREAD;
+constexpr int THREADS_PER_BLOCK = WORLD_SIZE * REPEATS_PER_ROW;
+
 // The valid states for each cell in the GOL simulation (this could get more
 // complex for other kinds of cellular automata).
 enum class Cell : unsigned char {
@@ -35,7 +40,12 @@ typedef unsigned int Fitness;
 
 // Which fitness goal to evaluate?
 enum class FitnessGoal {
+    EXPLODE,
+    GLIDERS,
+    LEFT_TO_RIGHT,
     STILL_LIFE,
+    SYMMETRY,
+    THREE_CYCLE,
     TWO_CYCLE,
     SIZE
 };

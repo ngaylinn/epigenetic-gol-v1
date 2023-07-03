@@ -52,27 +52,40 @@ class Simulator {
 
         // Generate a randomized population.
         void populate(const PhenotypeProgram* h_programs);
-        // Generate a new population from the previous generation.
+
+        // Generate a new population from the previous generation (use the
+        // get_genotypes method to access the new population).
         void propagate();
-        // Note, simulate always updates fitness_scores but for performance
-        // reasons it will only record videos if requested.
-        void simulate(FitnessGoal goal, bool record=false);
+
+        // Simulate a population for one lifetime (use the get_fitness_scores
+        // method to see how the population did).
+        void simulate(const FitnessGoal& goal);
+
+        // Same as simulate, but records a video of the full lifetime of the
+        // full population.
+        Video* simulate_and_record(const FitnessGoal& goal);
+
+        // Evolve a population of organisms. This is equivalent to calling
+        // populate then propagate and simulate repeatedly for num_generations.
+        // This method is preferred unless you need observe intermediate states
+        // while the population evolves.
+        void evolve(
+                const PhenotypeProgram* h_programs,
+                const FitnessGoal& goal,
+                const int num_generations);
 
         // -------------------------------------------------------------------
         // Methods to retrieve simulation results computed by simulate()
         // -------------------------------------------------------------------
 
         const Fitness* get_fitness_scores() const;
-        const Video* get_videos() const;
         const Genotype* get_genotypes() const;
 
         // -------------------------------------------------------------------
         // Methods to manage RNG state
         // -------------------------------------------------------------------
 
-        const std::vector<unsigned char> get_state() const;
-        void restore_state(std::vector<unsigned char> data);
-        void reset_state();
+        void seed(const unsigned int seed_value);
 };
 
 

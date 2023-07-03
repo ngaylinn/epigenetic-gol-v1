@@ -3,12 +3,16 @@
 
 #include <stdio.h>
 #include <vector>
+// TODO: Consider upgrading to C++20 so you don't need the experimetnal version
+#include <experimental/source_location>
 
 #include <curand_kernel.h>
 
 namespace epigenetic_gol_kernel {
 
 #define CUDA_CALL(val) check((val), #val, __FILE__, __LINE__)
+// TODO: Is CUDA_CHECK_ERROR still working? Didn't catch error in GOL kernel
+// invocation.
 #define CUDA_CHECK_ERROR() checkLast(__FILE__, __LINE__)
 
 namespace {
@@ -49,12 +53,23 @@ class DeviceData {
         const int size;
 
     public:
-        DeviceData(int size=1) : size(size) {
-            CUDA_CALL(cudaMalloc(&data, sizeof(T) * size));
+        DeviceData(
+                int size=1,
+                const std::experimental::source_location location =
+                    std::experimental::source_location::current()
+                ) : size(size) {
+            check(cudaMalloc(&data, sizeof(T) * size),
+                    location.function_name(), location.file_name(),
+                    location.line());
         }
 
-        DeviceData(int size, const T* h_data) : DeviceData(size) {
-            copy_from_host(h_data);
+        DeviceData(
+                int size,
+                const T* h_data,
+                const std::experimental::source_location location =
+                    std::experimental::source_location::current()
+                ) : DeviceData(size) {
+            copy_from_host(h_data, location);
         }
 
         DeviceData(const T* h_data) : DeviceData(1, h_data) {}
@@ -69,19 +84,31 @@ class DeviceData {
             other.data = temp;
         }
 
-        void copy_from_host(const T* h_data) {
-            CUDA_CALL(cudaMemcpy(data, h_data, sizeof(T) * size,
-                        cudaMemcpyHostToDevice));
+        void copy_from_host(
+                const T* h_data,
+                const std::experimental::source_location location =
+                    std::experimental::source_location::current()) {
+            check(cudaMemcpy(data, h_data, sizeof(T) * size,
+                        cudaMemcpyHostToDevice),
+                    location.function_name(), location.file_name(),
+                    location.line());
         }
 
-        void copy_to_host(T* h_data) const {
-            CUDA_CALL(cudaMemcpy(h_data, data, sizeof(T) * size,
-                        cudaMemcpyDeviceToHost));
+        void copy_to_host(
+                T* h_data,
+                const std::experimental::source_location location =
+                    std::experimental::source_location::current()) const {
+            check(cudaMemcpy(h_data, data, sizeof(T) * size,
+                        cudaMemcpyDeviceToHost),
+                    location.function_name(), location.file_name(),
+                    location.line());
         }
 
-        T* copy_to_host() const {
+        T* copy_to_host(
+                const std::experimental::source_location location =
+                    std::experimental::source_location::current()) const {
             T* result = new T[size];
-            copy_to_host(result);
+            copy_to_host(result, location);
             return result;
         }
 
@@ -98,65 +125,25 @@ class DeviceData {
         }
 };
 
-
 namespace {
 
-constexpr unsigned int SEED = 42;
+__global__ void InitRngsKernel(
+        curandState* rngs, int size, unsigned int seed) {
+    const int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= size) return;
 
-__global__ void InitRngsKernel(int population_size, curandState* rngs) {
-    const int population_index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (population_index >= population_size) return;
-
-    curand_init(SEED, population_index, 0, &rngs[population_index]);
+    curand_init(seed, index, 0, &rngs[index]);
 }
 
 } // namespace
 
-/*
- * A convenience class for managing curandState objects.
- *
- * This class handles allocation, initialization, serialization, and
- * deserialization of curandState arrays of arbitrary size.
- */
-class CurandStates {
-    protected:
-        int size;
-        DeviceData<curandState> data;
-
-    public:
-        CurandStates(int size)
-            : size(size), data(size) {
-            reset();
-        }
-
-        void reset() {
-            InitRngsKernel<<<
-                (size + MAX_THREADS - 1) / MAX_THREADS,
-                min(size, MAX_THREADS)
-            >>>(size, data);
-        }
-
-        const std::vector<unsigned char> get_state() const {
-            int state_size = sizeof(curandState) * size;
-            std::vector<unsigned char> result(state_size);
-            CUDA_CALL(cudaMemcpy(result.data(), data, state_size,
-                        cudaMemcpyDeviceToHost));
-            return result;
-        }
-
-        void restore_state(std::vector<unsigned char> state) {
-            if (state.size() != size) {
-                perror("State object has incorrect size; cannot restore.\n");
-            }
-            CUDA_CALL(cudaMemcpy(data, state.data(),
-                        sizeof(curandState) * size, cudaMemcpyHostToDevice));
-        }
-
-        operator curandState*() {
-            return data;
-        }
-
-};
+inline void seed_rngs(
+        curandState* rngs, unsigned int size, unsigned int seed_value) {
+    InitRngsKernel<<<
+        (size + MAX_THREADS - 1) / MAX_THREADS,
+        min(size, MAX_THREADS)
+    >>>(rngs, size, seed_value);
+}
 
 } // namespace epigenetic_gol_kernel
 

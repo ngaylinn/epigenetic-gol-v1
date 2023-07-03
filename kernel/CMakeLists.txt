@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.4...3.18)
 
+# Improves language server diagnostics when developing this project.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Work around a version compatibility issue between nvcc and g++ when compiling
 # the cub library and its dependency on std::functional.
 # For me, nvcc 11.5 w/ g++ 11.3 doesn't work, but nvcc 11.5 w/ g++ 10.4 does.
