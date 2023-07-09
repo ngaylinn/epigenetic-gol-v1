@@ -6,9 +6,6 @@
  * running them, referenced broadly throughout this project.
  */
 
-// TODO: Remove this when you're done debugging.
-#include <stdio.h>
-
 namespace epigenetic_gol_kernel {
 
 // The length of one side of a square simulated environment.

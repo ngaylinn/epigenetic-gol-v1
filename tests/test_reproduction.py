@@ -10,25 +10,28 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import gif_files
-import kernel
-import phenotype_program
+from kernel import (
+    breed_population,
+    Cell, GenotypeDType, Simulator,
+    CELLS_PER_STAMP, CROSSOVER_RATE, MUTATION_RATE, NUM_GENES, STAMP_SIZE)
+from phenotype_program import TestClade
 from tests import test_case
 
 
 def visualize_genotype(genotype):
     """Render a genotype as a plt figure with images."""
-    cols = kernel.NUM_GENES
+    cols = NUM_GENES
     fig = plt.figure("Genotype")
     for gene_index in range(cols):
         axis = fig.add_subplot(2, cols, gene_index + 1)
         # Make a primitive bar chart representing the scalar genes
         # that's the same width and appearance as a stamp gene value.
-        scale_factor = (1 << 32) / kernel.STAMP_SIZE
+        scale_factor = (1 << 32) / STAMP_SIZE
         raw_value = genotype['scalar_genes'][gene_index]
         scaled_value = int(raw_value / scale_factor)
         scalar_viz = np.pad(
             np.full((2, scaled_value), 0x00, dtype=np.uint8),
-            ((0, 0), (0, kernel.STAMP_SIZE - scaled_value)),
+            ((0, 0), (0, STAMP_SIZE - scaled_value)),
             constant_values=0xFF)
         gif_files.add_image_to_figure(scalar_viz, fig, axis)
         axis.set_title(f'{100 * raw_value / (0xFFFFFFFF):0.2f}%')
@@ -40,11 +43,12 @@ def visualize_genotype(genotype):
 
 class TestReproduction(test_case.TestCase):
     """Tests for initializing and breeding populations of Genotypes."""
+
     def test_randomize(self):
         """Random genes have the expected distributional properties."""
         num_species, num_trials, num_organisms = 5, 5, 32
-        simulator = kernel.Simulator(num_species, num_trials, num_organisms)
-        clade = phenotype_program.Clade(5, testing=True)
+        simulator = Simulator(num_species, num_trials, num_organisms)
+        clade = TestClade(5)
         simulator.populate(clade.serialize())
         genotypes = simulator.get_genotypes()
         # For every trial, look at the genes of all the organisms in that
@@ -61,32 +65,32 @@ class TestReproduction(test_case.TestCase):
                 # Scalar gene values are almost all unique, since few values
                 # are being drawn from the full range of 32-bit ints.
                 self.assertAlmostEqual(
-                    num_organisms * kernel.NUM_GENES,
+                    num_organisms * NUM_GENES,
                     np.unique(scalar_values).size,
                     delta=0.01, msg=msg)
                 # The average stamp value is halfway between ALIVE and DEAD.
                 self.assertProportional(
-                    (int(kernel.DEAD) + int(kernel.ALIVE)) / 2,
+                    (int(Cell.DEAD) + int(Cell.ALIVE)) / 2,
                     stamp_values.mean(),
                     0.11, msg=msg)
                 # About half of the stamp values are ALIVE.
                 self.assertProportional(
                     len(stamp_values) / 2,
-                    np.count_nonzero(stamp_values == int(kernel.ALIVE)),
+                    np.count_nonzero(stamp_values == int(Cell.ALIVE)),
                     0.11, msg=msg)
                 # All stamp values are either ALIVE or DEAD.
                 self.assertEqual(
                     len(stamp_values),
                     np.count_nonzero(
                         np.logical_or(
-                            stamp_values == int(kernel.ALIVE),
-                            stamp_values == int(kernel.DEAD))))
+                            stamp_values == int(Cell.ALIVE),
+                            stamp_values == int(Cell.DEAD))))
 
     def test_sample_random_genotypes(self):
         """Collect visualizations of random genotypes to verify manually."""
         num_organisms = 8
-        simulator = kernel.Simulator(1, 1, num_organisms)
-        clade = phenotype_program.Clade(1, testing=True)
+        simulator = Simulator(1, 1, num_organisms)
+        clade = TestClade(1)
         simulator.populate(clade.serialize())
         genotypes = simulator.get_genotypes()
         for organism_index in range(num_organisms):
@@ -101,8 +105,8 @@ class TestReproduction(test_case.TestCase):
         """The same seed produces the same pseudorandom genotypes."""
         def single_trial():
             result = {}
-            simulator = kernel.Simulator(5, 5, 32)
-            clade = phenotype_program.Clade(5, testing=True)
+            simulator = Simulator(5, 5, 32)
+            clade = TestClade(5)
             simulator.populate(clade.serialize())
             result['before'] = simulator.get_genotypes()
             simulator.propagate()
@@ -135,25 +139,25 @@ class TestReproduction(test_case.TestCase):
         # Set all genotype values to 0 and have every organism breed with
         # itself. Any non-zero values are the result of mutations.
         genotypes = np.zeros(
-            (num_species, num_trials, num_organisms), dtype=kernel.Genotype)
+            (num_species, num_trials, num_organisms), dtype=GenotypeDType)
         parent_selections = list(range(population_size))
         mate_selections = parent_selections
 
         # Actually do the breeding
-        genotypes = kernel.breed_population(
+        genotypes = breed_population(
             genotypes, parent_selections, mate_selections)
         scalar_values = genotypes['scalar_genes'].flatten()
         stamp_values = genotypes['stamp_genes'].flatten()
 
         # Assert mutation rate is as expected.
         self.assertProportional(
-            kernel.MUTATION_RATE * kernel.NUM_GENES * population_size,
+            MUTATION_RATE * NUM_GENES * population_size,
             np.count_nonzero(scalar_values),
             delta=0.1)
         alive_probability = 0.5
         self.assertProportional(
-            (kernel.MUTATION_RATE * kernel.NUM_GENES *
-             kernel.CELLS_PER_STAMP * population_size * alive_probability),
+            (MUTATION_RATE * NUM_GENES * CELLS_PER_STAMP *
+             population_size * alive_probability),
             np.count_nonzero(stamp_values),
             delta=0.1)
 
@@ -171,7 +175,7 @@ class TestReproduction(test_case.TestCase):
         mate_selections = []
         population_index = 0
         genotypes = np.empty(
-            (num_species, num_trials, num_organisms), dtype=kernel.Genotype)
+            (num_species, num_trials, num_organisms), dtype=GenotypeDType)
         for species_index in range(num_species):
             for trial_index in range(num_trials):
                 for organism_index in range(num_organisms):
@@ -192,7 +196,7 @@ class TestReproduction(test_case.TestCase):
                     population_index += 1
 
         # Actually do the breeding.
-        genotypes = kernel.breed_population(
+        genotypes = breed_population(
             genotypes, parent_selections, mate_selections)
         scalar_values = genotypes['scalar_genes'].flatten()
         stamp_values = genotypes['stamp_genes'].flatten()
@@ -204,14 +208,13 @@ class TestReproduction(test_case.TestCase):
         # If there was no crossover, all genes come from parent. If there was
         # crossover, 50% of genes come from parent.
         parent_gene_rate = (
-            (1 - kernel.CROSSOVER_RATE) + 0.5 * kernel.CROSSOVER_RATE)
+            (1 - CROSSOVER_RATE) + 0.5 * CROSSOVER_RATE)
         self.assertProportional(
-            parent_gene_rate * kernel.NUM_GENES * population_size,
+            parent_gene_rate * NUM_GENES * population_size,
             np.count_nonzero(scalar_values),
             delta=0.02)
         self.assertProportional(
-            (parent_gene_rate * kernel.NUM_GENES * kernel.CELLS_PER_STAMP *
-             population_size),
+            (parent_gene_rate * NUM_GENES * CELLS_PER_STAMP * population_size),
             np.count_nonzero(stamp_values),
             delta=0.02)
 

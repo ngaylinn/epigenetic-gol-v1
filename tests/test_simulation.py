@@ -7,8 +7,11 @@ import unittest
 
 import numpy as np
 
-import kernel
-import phenotype_program
+from kernel import (
+    simulate_phenotype,
+    FitnessGoal, Simulator,
+    NUM_STEPS, WORLD_SIZE)
+from phenotype_program import TestClade
 from tests import test_case
 
 GLIDER = np.array(
@@ -40,18 +43,16 @@ class TestSimulation(test_case.TestCase):
         """The same seed always produces the same simulated results."""
         def single_trial():
             result = {}
-            goal = kernel.FitnessGoal.STILL_LIFE
-            simulator = kernel.Simulator(3, 3, 32)
-            clade = phenotype_program.Clade(3, testing=True)
+            goal = FitnessGoal.STILL_LIFE
+            simulator = Simulator(3, 3, 32)
+            clade = TestClade()
             simulator.populate(clade.serialize())
             videos = simulator.simulate_and_record(goal)
             # Flatten out the collection of videos orgnanized by species,
             # trial, and organism into a flat list with one video for each
             # individual in the population.
             result['videos'] = np.reshape(
-                videos,
-                (simulator.size,
-                 kernel.NUM_STEPS, kernel.WORLD_SIZE, kernel.WORLD_SIZE))
+                videos, (-1, NUM_STEPS, WORLD_SIZE, WORLD_SIZE))
             result['fitness'] = simulator.get_fitness_scores()
             return result
         num_trials = 3
@@ -64,25 +65,24 @@ class TestSimulation(test_case.TestCase):
 
     def test_gpu_and_cpu_agree(self):
         """The fancy GPU-optimized simulation matches the basic one."""
-        goal = kernel.FitnessGoal.STILL_LIFE
-        simulator = kernel.Simulator(3, 3, 32)
-        clade = phenotype_program.Clade(3, testing=True)
+        goal = FitnessGoal.STILL_LIFE
+        simulator = Simulator(3, 3, 32)
+        clade = TestClade()
         simulator.populate(clade.serialize())
         # Grab just the first video from the GPU (the rest should be the same)
         gpu_video = simulator.simulate_and_record(goal)[0][0][0]
         # Run the CPU simulation with the same randomly generated phenotype we
         # used on the GPU, but then recompute the rest of the video.
-        cpu_video = kernel.simulate_phenotype(gpu_video[0])
+        cpu_video = simulate_phenotype(gpu_video[0])
         self.assertImagesEqual(gpu_video, cpu_video)
 
     def test_game_of_life(self):
         """A Game of Life simulation proceeds according to the rules."""
-        demo = np.full((kernel.WORLD_SIZE, kernel.WORLD_SIZE),
-                       0xFF, dtype=np.uint8)
+        demo = np.full((WORLD_SIZE, WORLD_SIZE), 0xFF, dtype=np.uint8)
         demo[32:44, 32:44] = PINWHEEL
         demo[16:19, 16:19] = GLIDER
 
-        self.assertGolden(kernel.simulate_phenotype(demo))
+        self.assertGolden(simulate_phenotype(demo))
 
 
 if __name__ == '__main__':

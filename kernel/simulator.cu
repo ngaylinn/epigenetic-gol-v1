@@ -32,8 +32,6 @@ class Simulator::DeviceAllocations {
               fitness_scores(size) {}
 };
 
-// TODO: Consider running simulations in parallel with breeding
-// PhenotypePrograms in python, if that makes sense.
 Simulator::Simulator(
         unsigned int num_species,
         unsigned int num_trials,
@@ -88,7 +86,7 @@ Video* Simulator::simulate_and_record(const FitnessGoal& goal) {
     return videos.copy_to_host();
 }
 
-void Simulator::evolve(
+const Fitness* Simulator::evolve(
         const PhenotypeProgram* h_programs,
         const FitnessGoal& goal,
         const int num_generations) {
@@ -98,6 +96,7 @@ void Simulator::evolve(
         propagate();
     }
     simulate(goal);
+    return get_fitness_scores();
 }
 
 
@@ -135,10 +134,9 @@ int main(int argc, char* argv[]) {
     FitnessGoal goal = FitnessGoal::STILL_LIFE;
     PhenotypeProgram programs[32];
     for (int i = 0; i < 32; i++) {
-        // TODO: Test this works as intended.
         programs[i].draw_ops[0].compose_mode = ComposeMode::OR;
         programs[i].draw_ops[0].global_transforms[0].type =
-            TransformType::TILE;
+            TransformMode::TILE;
     }
     simulator.populate(programs);
     for (int i = 0; i < 199; i++) {

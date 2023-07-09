@@ -6,34 +6,37 @@ import random
 import numpy as np
 from scipy import stats
 
-import kernel
+from kernel import (
+    select,
+    BiasMode, ComposeMode, PhenotypeProgramDType, TransformMode,
+    MAX_ARGUMENTS, MAX_OPERATIONS, NUM_GENES)
 
 MUTATION_RATE = 0.001
 CROSSOVER_RATE = 0.6
 
 GLOBAL_TRANSFORM_OPS = [
-    kernel.TransformType.ARRAY_1D,
-    kernel.TransformType.ARRAY_1D,
-    kernel.TransformType.ARRAY_2D,
-    kernel.TransformType.COPY,
-    kernel.TransformType.CROP,
-    kernel.TransformType.FLIP,
-    kernel.TransformType.MIRROR,
-    kernel.TransformType.QUARTER,
-    kernel.TransformType.ROTATE,
-    kernel.TransformType.SCALE,
-    kernel.TransformType.TILE,
-    kernel.TransformType.TRANSLATE,
+    TransformMode.ALIGN,
+    TransformMode.ARRAY_1D,
+    TransformMode.ARRAY_2D,
+    TransformMode.COPY,
+    TransformMode.CROP,
+    TransformMode.FLIP,
+    TransformMode.MIRROR,
+    TransformMode.QUARTER,
+    TransformMode.ROTATE,
+    TransformMode.SCALE,
+    TransformMode.TILE,
+    TransformMode.TRANSLATE,
 ]
 
 STAMP_TRANSFORM_OPS = [
-    kernel.TransformType.CROP,
-    kernel.TransformType.FLIP,
-    kernel.TransformType.MIRROR,
-    kernel.TransformType.QUARTER,
-    kernel.TransformType.ROTATE,
-    kernel.TransformType.SCALE,
-    kernel.TransformType.TRANSLATE,
+    TransformMode.CROP,
+    TransformMode.FLIP,
+    TransformMode.MIRROR,
+    TransformMode.QUARTER,
+    TransformMode.ROTATE,
+    TransformMode.SCALE,
+    TransformMode.TRANSLATE,
 ]
 
 
@@ -53,7 +56,7 @@ def crossover_operation_lists(op_list_a, op_list_b):
         set(op_b.inno for op_b in op_list_b)) == 0
     if disjoint:
         options = [op_list_a, op_list_b]
-        if len(op_list_a) + len(op_list_b) < 4:  # TODO: use a constant
+        if len(op_list_a) + len(op_list_b) < MAX_OPERATIONS:
             options.extend([op_list_a + op_list_b,
                             op_list_b + op_list_a])
         return deepcopy(random.choice(options))
@@ -136,19 +139,19 @@ class Argument:
         self.gene_index = 0
         # By default, operations take their arguments from the genotype without
         # any evolved preference for what the value should be.
-        self.bias_mode = kernel.BiasMode.NONE
+        self.bias_mode = BiasMode.NONE
         self.bias = None
 
     def mutate(self, bias, constraints, mutation_rate=MUTATION_RATE):
         if coin_flip(mutation_rate):
-            self.gene_index = random.randrange(kernel.NUM_GENES)
+            self.gene_index = random.randrange(NUM_GENES)
         if (constraints.allow_bias and bias is not None and
                 coin_flip(mutation_rate)):
             # Randomly select a different bias mode than the current one.
-            max_bias = kernel.BiasMode.SIZE.value
+            max_bias = BiasMode.SIZE.value
             bias_options = list(set(range(max_bias)) - {self.bias_mode.value})
-            self.bias_mode = kernel.BiasMode(random.choice(bias_options))
-            if self.bias_mode != kernel.BiasMode.NONE:
+            self.bias_mode = BiasMode(random.choice(bias_options))
+            if self.bias_mode != BiasMode.NONE:
                 self.bias = bias
 
     def serialize(self, output_array):
@@ -171,11 +174,11 @@ class TransformOperation:
             if type_options:
                 self.type = random.choice(type_options)
             else:
-                self.type = kernel.TransformType.TRANSLATE
+                self.type = TransformMode.TRANSLATE
             # Args always starts with default settings, even when the type is
             # randomized. This encourages simple organisms by default, with
             # greater complexity added via mutations.
-            self.args = [Argument() for _ in range(kernel.MAX_ARGUMENTS)]
+            self.args = [Argument() for _ in range(MAX_ARGUMENTS)]
 
     def crossover(self, other):
         assert self.inno == other.inno
@@ -200,7 +203,7 @@ class TransformOperation:
 
     def randomize(self):
         for arg in self.args:
-            arg.gene_index = random.randrange(kernel.NUM_GENES)
+            arg.gene_index = random.randrange(NUM_GENES)
 
     def serialize(self, output_array):
         output_array['type'] = self.type
@@ -210,7 +213,7 @@ class TransformOperation:
     def __str__(self):
         args = ', '.join([
             f'{arg.gene_index} ← {arg.bias}'
-            if arg.bias_mode == kernel.BiasMode.FIXED_VALUE
+            if arg.bias_mode == BiasMode.FIXED_VALUE
             else f'{arg.gene_index}'
             for arg in self.args])
         return f'{self.type.name}{{{self.inno}}}({args})'
@@ -228,7 +231,7 @@ class DrawOperation:
             self.global_transforms = global_transforms
             self.stamp_transforms = stamp_transforms
         else:
-            self.compose_mode = kernel.ComposeMode.OR
+            self.compose_mode = ComposeMode.OR
             self.stamp = Argument()
             self.global_transforms = []
             self.stamp_transforms = []
@@ -251,10 +254,10 @@ class DrawOperation:
             random.choice((self.stamp, other.stamp)),
             crossover_operation_lists(
                 self.global_transforms, other.global_transforms
-            )[:kernel.MAX_TRANSFORMS],
+            )[:MAX_OPERATIONS],
             crossover_operation_lists(
                 self.stamp_transforms, other.stamp_transforms
-            )[:kernel.MAX_TRANSFORMS])
+            )[:MAX_OPERATIONS])
 
     def fork(self, innovation_counter):
         # When adding a new DrawOperation by mutation, copy an existing
@@ -263,7 +266,7 @@ class DrawOperation:
         # allow divergance after future mutations.
         other = DrawOperation(
             next(innovation_counter),
-            kernel.ComposeMode.OR,
+            ComposeMode.OR,
             deepcopy(self.stamp),
             deepcopy(self.global_transforms),
             deepcopy(self.stamp_transforms)
@@ -277,8 +280,8 @@ class DrawOperation:
         # Maybe mutate compose_mode
         if coin_flip(mutation_rate):
             # Randomly pick a compose mode (that isn't NONE)
-            self.compose_mode = kernel.ComposeMode(
-                random.randrange(1, kernel.ComposeMode.SIZE.value))
+            self.compose_mode = ComposeMode(
+                random.randrange(1, ComposeMode.SIZE.value))
 
         # Look at the relevant stamp gene for every organism of this species
         # and take the mode and maybe use that as bias in the next generation
@@ -295,11 +298,11 @@ class DrawOperation:
 
         # Maybe add new global or stamp transform
         if (coin_flip(mutation_rate) and
-                len(self.global_transforms) + 1 < kernel.MAX_TRANSFORMS):
+                len(self.global_transforms) + 1 < MAX_OPERATIONS):
             self.global_transforms.append(
                 TransformOperation(innovation_counter, GLOBAL_TRANSFORM_OPS))
         if (constraints.allow_stamp_transforms and coin_flip(mutation_rate) and
-                len(self.stamp_transforms) + 1 < kernel.MAX_TRANSFORMS):
+                len(self.stamp_transforms) + 1 < MAX_OPERATIONS):
             self.stamp_transforms.append(
                 TransformOperation(innovation_counter, STAMP_TRANSFORM_OPS))
 
@@ -312,7 +315,7 @@ class DrawOperation:
                 genotypes, constraints, STAMP_TRANSFORM_OPS, mutation_rate)
 
     def randomize(self, innovation_counter, constraints):
-        self.stamp.gene_index = random.randrange(kernel.NUM_GENES)
+        self.stamp.gene_index = random.randrange(NUM_GENES)
         transform_type = random.choice(GLOBAL_TRANSFORM_OPS + [None])
         if transform_type is not None:
             transform = self.add_global_transform(innovation_counter)
@@ -343,7 +346,7 @@ class DrawOperation:
         stamps = (', '.join(map(str, self.stamp_transforms))
                   if self.stamp_transforms else 'NOOP')
         stamp_bias = ('\n  ' + str(self.stamp.bias)
-                      if self.stamp.bias_mode == kernel.BiasMode.FIXED_VALUE
+                      if self.stamp.bias_mode == BiasMode.FIXED_VALUE
                       else '')
         return (f'{compose}{{{self.inno}}}({self.stamp.gene_index})\n'
                 f'  {globals}\n'
@@ -378,7 +381,7 @@ class PhenotypeProgram:
         return PhenotypeProgram(
             crossover_operation_lists(
                 self.draw_ops, other.draw_ops
-            )[:kernel.MAX_DRAWS])
+            )[:MAX_OPERATIONS])
 
     def mutate(self, innovation_counter, genotypes, constraints,
                mutation_rate=MUTATION_RATE):
@@ -387,7 +390,7 @@ class PhenotypeProgram:
         # randomization, the mutation can be neutral and more likely to persist
         # as potential variation in the population.
         if (constraints.allow_composition and coin_flip(mutation_rate) and
-                len(self.draw_ops) + 1 < kernel.MAX_DRAWS):
+                len(self.draw_ops) + 1 < MAX_OPERATIONS):
             position = random.randrange(len(self.draw_ops))
             before = self.draw_ops[:position]
             middle = self.draw_ops[position].fork(innovation_counter)
@@ -399,9 +402,9 @@ class PhenotypeProgram:
 
     def randomize(self, innovation_counter, constraints):
         if constraints.allow_composition:
-            compose_mode = kernel.ComposeMode(
-                random.randrange(kernel.ComposeMode.SIZE.value))
-            if (compose_mode != kernel.ComposeMode.NONE):
+            compose_mode = ComposeMode(
+                random.randrange(ComposeMode.SIZE.value))
+            if (compose_mode != ComposeMode.NONE):
                 draw_op = self.add_draw(innovation_counter)
                 draw_op.compose_mode = compose_mode
         for draw_op in self.draw_ops:
@@ -409,13 +412,13 @@ class PhenotypeProgram:
 
     def serialize(self, output_array=None):
         if output_array is None:
-            output_array = np.zeros((), dtype=kernel.PhenotypeProgram)
+            output_array = np.zeros((), dtype=PhenotypeProgramDType)
         for index, draw_op in enumerate(self.draw_ops):
             draw_op.serialize(output_array['draw_ops'][index])
             # Avoid no-op PhenotypePrograms by ensuring that at least one draw
             # operation always applies.
             if (index == 0):
-                draw_op.compose_mode = kernel.ComposeMode.OR
+                draw_op.compose_mode = ComposeMode.OR
         return output_array
 
     def __str__(self):
@@ -424,33 +427,11 @@ class PhenotypeProgram:
 
 
 class Clade:
-    def __init__(self, size, constraints=Constraints(), testing=False):
+    def __init__(self, size, constraints=Constraints()):
+        self.size = size
         self.constraints = constraints
         self.innovation_counter = itertools.count()
-        # For testing, make a population with a default hard-coded program.
-        if testing:
-            test_program = PhenotypeProgram()
-            draw_op = test_program.add_draw(self.innovation_counter)
-            transform = draw_op.add_global_transform(self.innovation_counter)
-            transform.type = kernel.TransformType.TRANSLATE
-            transform.args[0].bias_mode = kernel.BiasMode.FIXED_VALUE
-            transform.args[0].bias = 28
-            transform.args[1].bias_mode = kernel.BiasMode.FIXED_VALUE
-            transform.args[1].bias = 28
-            self.programs = [deepcopy(test_program) for _ in range(size)]
-        # Otherwise, generate a new randomized population. Start with a
-        # minimal program and evolve complexity only as it benefits fitness.
-        else:
-            # Use zero initialized genotypes for randomizing the first
-            # population. This means any gene biases will go to zero.
-            minimal_program = PhenotypeProgram()
-            minimal_program.add_draw(self.innovation_counter)
-            self.programs = [minimal_program]
-            self.programs.extend(
-                [deepcopy(minimal_program) for _ in range(1, size)])
-
-            for program in self.programs:
-                program.randomize(self.innovation_counter, constraints)
+        self.populate()
 
     def __iter__(self):
         return iter(self.programs)
@@ -458,10 +439,18 @@ class Clade:
     def __getitem__(self, key):
         return self.programs[key]
 
+    def populate(self):
+        minimal_program = PhenotypeProgram()
+        minimal_program.add_draw(self.innovation_counter)
+        self.programs = [minimal_program]
+        self.programs.extend(
+            [deepcopy(minimal_program) for _ in range(1, self.size)])
+        for program in self.programs:
+            program.randomize(self.innovation_counter, self.constraints)
+
     def propagate(self, all_genotypes, fitness_scores):
-        parent_selections = kernel.select(
-            fitness_scores, random.getrandbits(32))
-        mate_selections = kernel.select(fitness_scores, random.getrandbits(32))
+        parent_selections = select(fitness_scores, random.getrandbits(32))
+        mate_selections = select(fitness_scores, random.getrandbits(32))
         self.programs = [
             self.programs[parent_index].make_offspring(
                 self.programs[mate_index],
@@ -475,7 +464,21 @@ class Clade:
         return parent_selections, mate_selections
 
     def serialize(self):
-        result = np.zeros(len(self.programs), dtype=kernel.PhenotypeProgram)
+        result = np.zeros(self.size, dtype=PhenotypeProgramDType)
         for index, program in enumerate(self.programs):
             program.serialize(result[index])
         return result
+
+
+class TestClade(Clade):
+    def populate(self):
+        test_program = PhenotypeProgram()
+        draw_op = test_program.add_draw(self.innovation_counter)
+        transform = draw_op.add_global_transform(self.innovation_counter)
+        transform.type = TransformMode.TRANSLATE
+        transform.args[0].bias_mode = BiasMode.FIXED_VALUE
+        transform.args[0].bias = 28
+        transform.args[1].bias_mode = BiasMode.FIXED_VALUE
+        transform.args[1].bias = 28
+        self.programs = [deepcopy(test_program) for _ in range(self.size)]
+

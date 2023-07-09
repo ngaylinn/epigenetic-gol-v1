@@ -1,8 +1,6 @@
 #ifndef __SIMULATOR_H__
 #define __SIMULATOR_H__
 
-#include <vector>
-
 #include "environment.h"
 #include "phenotype_program.h"
 
@@ -69,7 +67,7 @@ class Simulator {
         // populate then propagate and simulate repeatedly for num_generations.
         // This method is preferred unless you need observe intermediate states
         // while the population evolves.
-        void evolve(
+        const Fitness* evolve(
                 const PhenotypeProgram* h_programs,
                 const FitnessGoal& goal,
                 const int num_generations);
@@ -87,10 +85,6 @@ class Simulator {
 
         void seed(const unsigned int seed_value);
 };
-
-
-// TODO: Find a better home for this function.
-const Frame* preview_phenotype(const PhenotypeProgram& h_program);
 
 
 } // namespace epigenetic_gol_kernel

@@ -5,13 +5,15 @@ import unittest
 import numpy as np
 
 import experiments
-import kernel
-import phenotype_program
+from kernel import BiasMode, GenotypeDType
+from phenotype_program import (
+    crossover_operation_lists,
+    Clade, Constraints, PhenotypeProgram)
 from tests import test_case
 
 
 def make_dummy_genotype():
-    result = np.empty(1, dtype=kernel.Genotype)
+    result = np.empty(1, dtype=GenotypeDType)
     result['scalar_genes'] = np.random.randint(0, 65, (4,), dtype=np.uint32)
     result['stamp_genes'] = (
         np.random.randint(0, 2, (4, 8, 8), dtype=np.uint8) * 255)
@@ -29,7 +31,7 @@ def crossover(list_a, list_b):
         def crossover(self, other):
             return self
 
-    result = phenotype_program.crossover_operation_lists(
+    result = crossover_operation_lists(
         [MockOperation(inno) for inno in list_a],
         [MockOperation(inno) for inno in list_b])
     return [operation.inno for operation in result]
@@ -56,9 +58,9 @@ def count_diffs(array_a, array_b):
     return result
 
 
-def all_arguments(phenotype_program):
+def all_arguments(program):
     result = []
-    for draw_op in phenotype_program.draw_ops:
+    for draw_op in program.draw_ops:
         result.append(draw_op.stamp)
         for transform in draw_op.global_transforms:
             result.extend(transform.args)
@@ -160,9 +162,8 @@ class TestPhenotypeProgram(test_case.TestCase):
             })
 
     def test_initial_population(self):
-        constraints = phenotype_program.Constraints(True, True, True)
-        clade = phenotype_program.Clade(
-            experiments.NUM_SPECIES, constraints).serialize()
+        constraints = Constraints(True, True, True)
+        clade = Clade(experiments.NUM_SPECIES, constraints).serialize()
         progenitor = clade[0]
         diffs_per_species = []
         for species in clade[1:]:
@@ -178,26 +179,25 @@ class TestPhenotypeProgram(test_case.TestCase):
 
     def test_constraints_allow_composition(self):
         innovation_counter = itertools.count()
-        program = phenotype_program.PhenotypeProgram()
+        program = PhenotypeProgram()
         program.add_draw(innovation_counter)
-        constraints = phenotype_program.Constraints(allow_composition=True)
+        constraints = Constraints(allow_composition=True)
         program.mutate(innovation_counter, DUMMY_GENOTYPE, constraints, 1.0)
         self.assertGreater(len(program.draw_ops), 1)
 
     def test_constraints_disallow_composition(self):
         innovation_counter = itertools.count()
-        program = phenotype_program.PhenotypeProgram()
+        program = PhenotypeProgram()
         program.add_draw(innovation_counter)
-        constraints = phenotype_program.Constraints(allow_composition=False)
+        constraints = Constraints(allow_composition=False)
         program.mutate(innovation_counter, DUMMY_GENOTYPE, constraints, 1.0)
         self.assertEqual(len(program.draw_ops), 1)
 
     def test_constraints_allow_stamp_transforms(self):
         innovation_counter = itertools.count()
-        program = phenotype_program.PhenotypeProgram()
+        program = PhenotypeProgram()
         program.add_draw(innovation_counter)
-        constraints = phenotype_program.Constraints(
-            allow_stamp_transforms=True)
+        constraints = Constraints(allow_stamp_transforms=True)
         program.mutate(innovation_counter, DUMMY_GENOTYPE, constraints, 1.0)
         num_stamp_transforms = 0
         for draw_op in program.draw_ops:
@@ -206,10 +206,9 @@ class TestPhenotypeProgram(test_case.TestCase):
 
     def test_constraints_disallow_stamp_transforms(self):
         innovation_counter = itertools.count()
-        program = phenotype_program.PhenotypeProgram()
+        program = PhenotypeProgram()
         program.add_draw(innovation_counter)
-        constraints = phenotype_program.Constraints(
-            allow_stamp_transforms=False)
+        constraints = Constraints(allow_stamp_transforms=False)
         program.mutate(innovation_counter, DUMMY_GENOTYPE, constraints, 1.0)
         num_stamp_transforms = 0
         for draw_op in program.draw_ops:
@@ -218,42 +217,42 @@ class TestPhenotypeProgram(test_case.TestCase):
 
     def test_constraints_allow_bias(self):
         innovation_counter = itertools.count()
-        program = phenotype_program.PhenotypeProgram()
+        program = PhenotypeProgram()
         program.add_draw(innovation_counter)
-        constraints = phenotype_program.Constraints(allow_bias=True)
+        constraints = Constraints(allow_bias=True)
         program.mutate(innovation_counter, DUMMY_GENOTYPE, constraints, 1.0)
         stamp_biases = 0
         transform_biases = 0
         for draw_op in program.draw_ops:
-            stamp_biases += draw_op.stamp.bias_mode != kernel.BiasMode.NONE
+            stamp_biases += draw_op.stamp.bias_mode != BiasMode.NONE
             for transform in draw_op.global_transforms:
                 transform_biases += sum(
-                    arg.bias_mode != kernel.BiasMode.NONE
+                    arg.bias_mode != BiasMode.NONE
                     for arg in transform.args)
             for transform in draw_op.stamp_transforms:
                 transform_biases += sum(
-                    arg.bias_mode != kernel.BiasMode.NONE
+                    arg.bias_mode != BiasMode.NONE
                     for arg in transform.args)
         self.assertGreater(stamp_biases, 0)
         self.assertGreater(transform_biases, 0)
 
     def test_constraints_disallow_bias(self):
         innovation_counter = itertools.count()
-        program = phenotype_program.PhenotypeProgram()
+        program = PhenotypeProgram()
         program.add_draw(innovation_counter)
-        constraints = phenotype_program.Constraints(allow_bias=False)
+        constraints = Constraints(allow_bias=False)
         program.mutate(innovation_counter, DUMMY_GENOTYPE, constraints, 1.0)
         stamp_biases = 0
         transform_biases = 0
         for draw_op in program.draw_ops:
-            stamp_biases += draw_op.stamp.bias_mode != kernel.BiasMode.NONE
+            stamp_biases += draw_op.stamp.bias_mode != BiasMode.NONE
             for transform in draw_op.global_transforms:
                 transform_biases += sum(
-                    arg.bias_mode != kernel.BiasMode.NONE
+                    arg.bias_mode != BiasMode.NONE
                     for arg in transform.args)
             for transform in draw_op.stamp_transforms:
                 transform_biases += sum(
-                    arg.bias_mode != kernel.BiasMode.NONE
+                    arg.bias_mode != BiasMode.NONE
                     for arg in transform.args)
         self.assertEqual(stamp_biases, 0)
         self.assertEqual(transform_biases, 0)

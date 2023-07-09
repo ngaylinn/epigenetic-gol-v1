@@ -35,8 +35,7 @@ struct Genotype {
 };
 
 // Fixed allocation sizes for PhenotypeProgram programs.
-constexpr unsigned int MAX_DRAWS = 4;
-constexpr unsigned int MAX_TRANSFORMS = 4;
+constexpr unsigned int MAX_OPERATIONS = 4;
 constexpr unsigned int MAX_ARGUMENTS = 2;
 
 // An enum representing how to bias data read from the genotype. This may get
@@ -50,8 +49,9 @@ enum class BiasMode {
 // An exhaustive list of Operations (implemented in development.cu). When
 // adding a new apply func, make sure to add a new enum value here and to the
 // Python bindings in python_module.cc.
-enum class TransformType {
+enum class TransformMode {
     NONE,
+    ALIGN,     // Position stamp at the center or along an edge
     ARRAY_1D,  // Repeat coordinates in a 1D line
     ARRAY_2D,  // Repeat coordinates in a 2D grid
     COPY,      // Repeat coordinates once at some offset
@@ -75,8 +75,7 @@ struct ScalarArgument {
 };
 
 struct TransformOperation {
-    // TODO: Consistent naming with ComposeMode?
-    TransformType type = TransformType::NONE;
+    TransformMode type = TransformMode::NONE;
     ScalarArgument args[MAX_ARGUMENTS] = {};
 };
 
@@ -97,12 +96,12 @@ struct StampArgument {
 struct DrawOperation {
     ComposeMode compose_mode = ComposeMode::NONE;
     StampArgument stamp;
-    TransformOperation global_transforms[MAX_TRANSFORMS] = {};
-    TransformOperation stamp_transforms[MAX_TRANSFORMS] = {};
+    TransformOperation global_transforms[MAX_OPERATIONS] = {};
+    TransformOperation stamp_transforms[MAX_OPERATIONS] = {};
 };
 
 struct PhenotypeProgram {
-    DrawOperation draw_ops[MAX_DRAWS] = {};
+    DrawOperation draw_ops[MAX_OPERATIONS] = {};
 };
 
 } // namespace epigenetic_gol_kernel

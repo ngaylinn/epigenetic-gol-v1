@@ -7,6 +7,10 @@
 namespace epigenetic_gol_kernel {
 namespace {
 
+// ---------------------------------------------------------------------------
+// Utilities for transform functions
+// ---------------------------------------------------------------------------
+
 // Special value for coordinate transforms, indicating that a Cell is no longer
 // part of the logical space of the board and should not receive any value.
 const int OUT_OF_BOUNDS = -1;
@@ -29,6 +33,23 @@ __device__ const Stamp& get_stamp(
         default:
             return genotype.stamp_genes[arg.gene_index % NUM_GENES];
     }
+}
+
+// ---------------------------------------------------------------------------
+// Transform function definitions
+// ---------------------------------------------------------------------------
+
+__device__ void apply_align(
+        const Genotype& genotype, const TransformOperation& op,
+        int& row, int& col) {
+    int v_align = get_scalar(op.args[0], genotype) % 3;
+    int h_align = get_scalar(op.args[1], genotype) % 3;
+    constexpr int min_edge = 0;
+    constexpr int center = (WORLD_SIZE - STAMP_SIZE) / 2;
+    constexpr int max_edge = WORLD_SIZE - STAMP_SIZE;
+
+    row = (v_align == 0 ? min_edge : (v_align == 1 ? center : max_edge));
+    col = (h_align == 0 ? min_edge : (h_align == 1 ? center : max_edge));
 }
 
 __device__ void apply_array_1d(
@@ -164,10 +185,14 @@ __device__ void apply_transform(
         const Genotype& genotype, const TransformOperation& op,
         int& row, int& col);
 
+// ---------------------------------------------------------------------------
+// Interpret a PhenotypeProgram + Genotype to make a Phenotype
+// ---------------------------------------------------------------------------
+
 // TODO: Switch-based dispatching is kinda slow. It would be better to use
 // vtable or tag-based based dispatching, but those don't apply when the
 // types aren't known in advance. It would likely require a "compilation"
-// pass over the program, to resolve they types once up front and embodying the
+// pass over the program, to resolve the types once up front and embodying the
 // results in a data structure or dynamically generated PTX file. It might be
 // more elegant to work with the Python data structure directly rather than
 // using these structs as an intermediate structure, but that may be awkward if
@@ -180,27 +205,29 @@ __device__ void apply_transform<WORLD_SIZE>(
     // Apply global transformations. Note that some transformations can be used
     // either globally or locally. They get configured by a template argument.
     switch (op.type) {
-        case TransformType::ARRAY_1D:
+        case TransformMode::ALIGN:
+            return apply_align(genotype, op, row, col);
+        case TransformMode::ARRAY_1D:
             return apply_array_1d(genotype, op, row, col);
-        case TransformType::ARRAY_2D:
+        case TransformMode::ARRAY_2D:
             return apply_array_2d(genotype, op, row, col);
-        case TransformType::COPY:
+        case TransformMode::COPY:
             return apply_copy(genotype, op, row, col);
-        case TransformType::CROP:
+        case TransformMode::CROP:
             return apply_crop<WORLD_SIZE>(genotype, op, row, col);
-        case TransformType::FLIP:
+        case TransformMode::FLIP:
             return apply_flip<WORLD_SIZE>(genotype, op, row, col);
-        case TransformType::MIRROR:
+        case TransformMode::MIRROR:
             return apply_mirror<WORLD_SIZE>(genotype, op, row, col);
-        case TransformType::QUARTER:
+        case TransformMode::QUARTER:
             return apply_quarter<WORLD_SIZE>(genotype, op, row, col);
-        case TransformType::ROTATE:
+        case TransformMode::ROTATE:
             return apply_rotate<WORLD_SIZE>(genotype, op, row, col);
-        case TransformType::SCALE:
+        case TransformMode::SCALE:
             return apply_scale(genotype, op, row, col);
-        case TransformType::TILE:
+        case TransformMode::TILE:
             return apply_tile(genotype, op, row, col);
-        case TransformType::TRANSLATE:
+        case TransformMode::TRANSLATE:
             return apply_translate<WORLD_SIZE>(genotype, op, row, col);
         default:
             return;
@@ -214,19 +241,19 @@ __device__ void apply_transform<STAMP_SIZE>(
     // Only some of the transform operations actually make sense to apply to
     // the stamp coordinate space. Any others will be ignored.
     switch (op.type) {
-        case TransformType::CROP:
+        case TransformMode::CROP:
             return apply_crop<STAMP_SIZE>(genotype, op, row, col);
-        case TransformType::FLIP:
+        case TransformMode::FLIP:
             return apply_flip<STAMP_SIZE>(genotype, op, row, col);
-        case TransformType::MIRROR:
+        case TransformMode::MIRROR:
             return apply_mirror<STAMP_SIZE>(genotype, op, row, col);
-        case TransformType::QUARTER:
+        case TransformMode::QUARTER:
             return apply_quarter<STAMP_SIZE>(genotype, op, row, col);
-        case TransformType::ROTATE:
+        case TransformMode::ROTATE:
             return apply_rotate<STAMP_SIZE>(genotype, op, row, col);
-        case TransformType::SCALE:
+        case TransformMode::SCALE:
             return apply_scale(genotype, op, row, col);
-        case TransformType::TRANSLATE:
+        case TransformMode::TRANSLATE:
             return apply_translate<STAMP_SIZE>(genotype, op, row, col);
         default:
             return;
@@ -239,10 +266,10 @@ __device__ void apply_transform_list(
         int& row, int& col) {
     // Go through the array of transforms, applying them to row and col to
     // remap the coordinate space we're drawing on.
-    for (int i = 0; i < MAX_TRANSFORMS; i++) {
+    for (int i = 0; i < MAX_OPERATIONS; i++) {
         // A NONE transform has no effect and indicates the end of this part of
         // the program. Stop processing the transform list.
-        if (transforms[i].type == TransformType::NONE) {
+        if (transforms[i].type == TransformMode::NONE) {
             break;
         }
         // If this position has been marked out of bounds by a previous
@@ -298,7 +325,7 @@ __device__ void make_phenotype(
     // that, additional draw operations layer over what came before using
     // whatever composition is specified.
     bool alive = false;
-    for (int i = 0; i < MAX_DRAWS; i++) {
+    for (int i = 0; i < MAX_OPERATIONS; i++) {
         if (program.draw_ops[i].compose_mode == ComposeMode::NONE) {
             break;
         }
@@ -328,8 +355,6 @@ __device__ void make_phenotype(
     // Cell values here because treating ALIVE and DEAD as bools has
     // counter-intuitive behavior. The value of ALIVE is 0x00 so that a live
     // cell appears black in the output images.
-    // TODO: Would it be better to flip this, let DEAD be 0x00 and perform an
-    // inversion when rendering the phenotypes and simulation videos?
     cell = alive ? Cell::ALIVE : Cell::DEAD;
 }
 
