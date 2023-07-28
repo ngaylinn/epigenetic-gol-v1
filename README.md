@@ -87,13 +87,43 @@ TODO: Mention "weighted median integral" in the code comments, link to it here.
 
 Since the inner and outer loops of this project have different notions of fitness, it's best to think of them as two separate evoluationary searches. The inner loop searches for interesting GOL simulations within the search space defined by a particular `PhenotypeProgram`. The outer loop searches for subsets of the larger search space where interesting GOL simulations can be found. In other words, an epigenetic algorithm doesn't search for fit organisms, it searches for evolutionary algorithms that produce fit organisms.
 
+TODO: Use images of starting populations to illustrate species variability
+
 ## Genetics and Development
+
+TODO: diagram of a PhenotypeProgram and Genotype with bindings
+
+The core challenge of this project is to evolve a grammar for the gene sequence of an evolutionary algorithm. Like any evolutionary algorithm, this project must evolve a `Genotype` that effectively solves a fitness challenge. What's different is that the *meaning* of that `Genotype` is not fixed, but is determined by a `PhenotypeProgram`, which gets evolved separately. The `Genotype` itself, then, is mostly just a sequence of bits. For practical reasons, those bits are organized into "genes" of two types: `Scalar` genes are unsigned 32-bit ints, and `Stamps` are 8x8 arrays of GOL `Cell` values. These genes take on meaning when they get bound to `Argument`s in a `PhenotypeProgram`. `ScalarArgument`s are used to configure the behavior of an `Operation` (translate *this many* pixels to the right), while `StampArgument`s are used to encode portions of the phenotype literally (draw *this pattern* here).
+
+TODO: step-by-step images of phenotype rendering
+
+The `PhenotypeProgram`, is like a tree of primitive functions (`Operations`) that does nothing but transform data from the organism's gene sequence and environment. For those familiar, it's a bit like the [NEAT](https://towardsdatascience.com/neat-an-awesome-approach-to-neuroevolution-3eca5cc7930f) algorithm for neuroevolution. This project uses two types of `Operations`. `DrawOperation`s actually write to the phenotype, usually by copying data from a `Stamp` gene. `TransformOperations` like `TRANSLATE`, `CROP`, `MIRROR` and `COPY` don't change the phenotype, but instead warp its coordinate system. They can either apply globally, which allows the `PhenotypeProgram` to position, transform, and repeat the pattern in a `Stamp` gene across the GOL board, or they apply to a `Stamp` gene, which can constrain what kinds of patterns will evolve and get drawn. Overall, a `PhenotypeProgram` consists of one or more `DrawOperations` that layer on top of each other using some `ComposeMode`, with zero or more `global_transforms` and `stamp_transforms` for each.
+
+One important aspect of how `Argument` binding works is that each `Genotype` actually has several genes of each type. Each `Argument` gets bound to one gene of the appropriate type, but multiple `Arguments` can bind to the same gene value. This allows for useful interactions between `Argument`s and `Operations`. For instance, a `TRANSLATE` `Operation` might always shift the phenotype *diagonally* if the row and column offset `Arguments` are bound to the same value. Similarly, a `CROP` and a `COPY` `Operation` could combine to take an N-cell-wide strip of a `Stamp` gene and repeat it exactly N cells to the left, ensuring the two `Operations` stay in sync even if N evolves to take on a different value.
+
+As mentioned above, the [nested evolution](#nested-evolution) strategy used by this project has the unfortunate effect of throwing away evolved `Genotype`s each time a new generation of species is spawned. To work around that problem, this project uses the notion of `gene_bias`, which is loosely inspired by the natural process of [canalization](#biological-realism). This works by randomly fixing the value of a gene to some common value from the previous generation of organisms. While this prevents the gene value from evolving into something even better in the inner loop, it also allows the outer loop to quickly constrain the search space to variations of a pattern that has worked before. For now, `gene_bias` always works in this simple same way, though there are many possible variations to explore, such as *preferring* a gene value rather than forcing it, or intentionally injecting randomness.
 
 ## Inner-Loop Design
 
+Simulator class / memory management
+Genotype Generation and propagation
+Selection
+GOL simulation & fitness observers
+Python interface
+
 ## Outer-Loop Design
 
+PhenotypeProgram Generation and propagation
+Experiment variations and evolution procedure
+Core executables: evolve_species, summarize_results
+Utilities: benchmark, trace_species_evolution, tests
+
 ## Execution
+
+Hardware requirements
+Dependencies
+Build targets
+Command line examples
 
 # Biological Realism
 
