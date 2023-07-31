@@ -1,7 +1,15 @@
+/*
+ * Utilities for working with CUDA.
+ *
+ * The purpose of this header is mostly to avoid verbose boilerplate and common
+ * definitions from getting repeated across all the files of this project.
+ */
+
 #ifndef __CUDA_UTILS__H_
 #define __CUDA_UTILS__H_
 
 #include <stdio.h>
+// TODO: Unused?
 #include <vector>
 // TODO: Consider upgrading to C++20 so you don't need the experimetnal version
 #include <experimental/source_location>
@@ -10,6 +18,10 @@
 
 namespace epigenetic_gol_kernel {
 
+// CUDA error-checking macros. It's recommended to use these after every CUDA
+// operation so that asynchronous errors are noticed sooner rather than later.
+// CUDA_CALL wraps a CUDA function call, while CUDA_CHECK_ERROR is called
+// immediately after a kernel launch.
 #define CUDA_CALL(val) check((val), #val, __FILE__, __LINE__)
 // TODO: Is CUDA_CHECK_ERROR still working? Didn't catch error in GOL kernel
 // invocation.
@@ -37,13 +49,14 @@ unsigned int max_threads() {
 
 } // namespace
 
+// The maximum number of threads per block on this device.
 const unsigned int MAX_THREADS = max_threads();
 
 
 /*
  * A convenience class for managing device-side memory allocations.
  *
- * This class can be used to create single objects or arrays of objects on the
+ * This class is used to create single objects or arrays of objects on the
  * GPU device, handling all the CUDA memory management behind the scenes.
  */
 template<typename T>
@@ -54,7 +67,8 @@ class DeviceData {
 
     public:
         DeviceData(
-                int size=1,
+                int size=1, // Array size, or 1 for single object.
+                // For line numbers in error reporting. Don't pass an argument.
                 const std::experimental::source_location location =
                     std::experimental::source_location::current()
                 ) : size(size) {
@@ -65,13 +79,15 @@ class DeviceData {
 
         DeviceData(
                 int size,
-                const T* h_data,
+                const T* h_data, // initialize to host-side data
                 const std::experimental::source_location location =
                     std::experimental::source_location::current()
                 ) : DeviceData(size) {
             copy_from_host(h_data, location);
         }
 
+        // TODO: If you give size a default value above, do you need a
+        // separate definition for this function?
         DeviceData(const T* h_data) : DeviceData(1, h_data) {}
 
         ~DeviceData() {
@@ -120,6 +136,8 @@ class DeviceData {
             return data;
         }
 
+        // TODO: Would it be possible / better to remove this and use
+        // a * operator directly on a DeviceData object?
         operator const T&() const {
             return *data;
         }
@@ -137,6 +155,7 @@ __global__ void InitRngsKernel(
 
 } // namespace
 
+// Initialize an array of curandState objects on the GPU device.
 inline void seed_rngs(
         curandState* rngs, unsigned int size, unsigned int seed_value) {
     InitRngsKernel<<<
