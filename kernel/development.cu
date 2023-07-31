@@ -15,6 +15,8 @@ namespace {
 // part of the logical space of the board and should not receive any value.
 const int OUT_OF_BOUNDS = -1;
 
+// Look up the gene value for a ScalarArgument, taking gene_index and bias
+// into account.
 __device__ Scalar get_scalar(
         const ScalarArgument& arg, const Genotype& genotype) {
     switch (arg.bias_mode) {
@@ -25,6 +27,8 @@ __device__ Scalar get_scalar(
     }
 }
 
+// Look up the gene value for a StampArgument, taking gene_index and bias
+// into account.
 __device__ const Stamp& get_stamp(
         const StampArgument& arg, const Genotype& genotype) {
     switch (arg.bias_mode) {
@@ -39,6 +43,9 @@ __device__ const Stamp& get_stamp(
 // Transform function definitions
 // ---------------------------------------------------------------------------
 
+// TODO: This one is still a little weird. You should probably get rid of it,
+// unless it really is important for symmetry. If you do keep it, perhaps allow
+// aligning in one dimension but not the other?
 __device__ void apply_align(
         const Genotype& genotype, const TransformOperation& op,
         int& row, int& col) {
@@ -48,6 +55,8 @@ __device__ void apply_align(
     constexpr int center = (WORLD_SIZE - STAMP_SIZE) / 2;
     constexpr int max_edge = WORLD_SIZE - STAMP_SIZE;
 
+    // Align the stamp to the center or edge of the GOL board, vertically
+    // and / or horizontally.
     row = (v_align == 0 ? min_edge : (v_align == 1 ? center : max_edge));
     col = (h_align == 0 ? min_edge : (h_align == 1 ? center : max_edge));
 }
@@ -58,6 +67,9 @@ __device__ void apply_array_1d(
     int row_offset = get_scalar(op.args[0], genotype) % WORLD_SIZE;
     int col_offset = get_scalar(op.args[1], genotype) % WORLD_SIZE;
 
+    // This is equivalent to doing a modulus operation, like in
+    // apply_array_2d, except using min constrains repetitions to s
+    // diagonal line.
     int rep_number = min(row / row_offset, col / col_offset);
     row -= rep_number * row_offset;
     col -= rep_number * col_offset;
@@ -79,6 +91,8 @@ __device__ void apply_copy(
     int row_offset = get_scalar(op.args[0], genotype) % WORLD_SIZE;
     int col_offset = get_scalar(op.args[1], genotype) % WORLD_SIZE;
 
+    // This is just like apply_array_1d, but the outer min ensures the
+    // pattern repeats exactly once.
     int rep_number = min(min(row / row_offset, col / col_offset), 1);
     row -= rep_number * row_offset;
     col -= rep_number * col_offset;
@@ -98,6 +112,8 @@ template<int SIZE>
 __device__ void apply_flip(
         const Genotype& genotype, const TransformOperation& op,
         int& row, int& col) {
+    // TODO: It's probably better to use two scalars rather than
+    // packing two values into a single scalar.
     int axes = get_scalar(op.args[0], genotype);
     row = (axes & 0b01) ? SIZE - 1 - row : row;
     col = (axes & 0b10) ? SIZE - 1 - col : col;
@@ -107,6 +123,8 @@ template<int SIZE>
 __device__ void apply_mirror(
         const Genotype& genotype, const TransformOperation& op,
         int& row, int& col) {
+    // TODO: It's probably better to use two scalars rather than
+    // packing two values into a single scalar.
     int axes = get_scalar(op.args[0], genotype);
     row = (axes & 0b01) && row >= SIZE / 2 ? SIZE - 1 - row : row;
     col = (axes & 0b10) && col >= SIZE / 2 ? SIZE - 1 - col : col;
@@ -116,6 +134,8 @@ template<int SIZE>
 __device__ void apply_quarter(
         const Genotype& genotype, const TransformOperation& op,
         int& row, int& col) {
+    // TODO: It's probably better to use two scalars rather than
+    // packing two values into a single scalar.
     int axes = get_scalar(op.args[0], genotype);
     constexpr int half = SIZE / 2;
     unsigned char quadrant_bitmask = 1 << ((row >= half) | (col >= half) << 1);
@@ -160,16 +180,22 @@ __device__ void apply_tile(
     int offset = get_scalar(op.args[0], genotype) % STAMP_SIZE;
     bool flip_every_other = get_scalar(op.args[1], genotype) & 0b1;
 
+    // TODO: don't compute every_other_* unless flip_every_other is true.
+    // If this Operation is configured to flip every other tile, then figure
+    // out if the tile at this position ought to be flipped.
     bool every_other_row = (row / STAMP_SIZE) & 0b1;
     offset = every_other_row ? offset : 0;
     bool every_other_col = ((col + offset) / STAMP_SIZE) & 0b1;
     bool flip = flip_every_other && (every_other_row ^ every_other_col);
 
+    // TODO: pull the flip computation out so it doesn't look like one
+    // long confusing equation.
     row = flip ? STAMP_SIZE - 1 - row % STAMP_SIZE : row % STAMP_SIZE;
     col = flip ? (STAMP_SIZE - 1 - col + offset) % STAMP_SIZE
                : (col + offset) % STAMP_SIZE;
 }
 
+// TODO: Continue commenting from this point.
 template<int SIZE>
 __device__ void apply_translate(
         const Genotype& genotype, const TransformOperation& op,
