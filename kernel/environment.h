@@ -1,10 +1,10 @@
-#ifndef __ENVIRONMENT_H__
-#define __ENVIRONMENT_H__
-
 /*
- * Constants and types representing Game of Life simulations and conext for
+ * Constants and types representing Game of Life simulations and context for
  * running them, referenced broadly throughout this project.
  */
+
+#ifndef __ENVIRONMENT_H__
+#define __ENVIRONMENT_H__
 
 namespace epigenetic_gol_kernel {
 
@@ -35,15 +35,15 @@ typedef Frame Video[NUM_STEPS];
 // Integer values are used for fitness, larger is better.
 typedef unsigned int Fitness;
 
-// Which fitness goal to evaluate?
+// Objectives used to evaluate organism fitness.
 enum class FitnessGoal {
-    EXPLODE,
-    GLIDERS,
-    LEFT_TO_RIGHT,
-    STILL_LIFE,
-    SYMMETRY,
-    THREE_CYCLE,
-    TWO_CYCLE,
+    EXPLODE,       // Fewest live cells -> Most live cells
+    GLIDERS,       // Look for repetition at end with an offset position
+    LEFT_TO_RIGHT, // Most live cells on left -> Most live cells on right
+    STILL_LIFE,    // Most live cells that do not change at end
+    SYMMETRY,      // Most live cells at end that mirror (H or V)  
+    THREE_CYCLE,   // Look for repetition at end with 3-frame cycles
+    TWO_CYCLE,     // Look for repetition at end with 2-frame cycles
     SIZE
 };
 
