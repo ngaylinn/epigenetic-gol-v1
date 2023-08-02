@@ -27,7 +27,6 @@ TODO: Ideas for additional fitness goals:
   We can directly measure the complexity of a PhenotypeProgram, and could
   estimate the information content of a GOL program by trying to compress the
   last frame of the video, perhaps using the nvCOMP library.
-
 */
 
 // ---------------------------------------------------------------------------
@@ -49,11 +48,17 @@ __device__ void FitnessObserver<GOAL>::observe(
             case FitnessGoal::LEFT_TO_RIGHT:
             case FitnessGoal::THREE_CYCLE:
             case FitnessGoal::TWO_CYCLE:
+                // Observe this cell and store incremental fitness data in
+                // scratch_a[i] and scratch_b[i]. The meaning of these two values
+                // is goal-specific.
                 update(step, row, col+i, local[i], scratch_a[i], scratch_b[i]);
                 break;
 
             case FitnessGoal::GLIDERS:
             case FitnessGoal::SYMMETRY:
+                // Observe this cell and store incremental fitness data in
+                // scratch_a[i] and scratch_b[i]. The meaning of these two values
+                // is goal-specific.
                 update(step, row, col+i, global, scratch_a[i], scratch_b[i]);
                 break;
 
@@ -65,13 +70,17 @@ __device__ void FitnessObserver<GOAL>::observe(
 
 template<FitnessGoal GOAL>
 __device__ void FitnessObserver<GOAL>::reduce(Fitness* result) {
+    // Add up the values of scratch_a and scratch_b across all threads
+    // (ie, the full GOL board). 
     auto reduce = cub::BlockReduce<uint32_t, THREADS_PER_BLOCK>();
     uint32_t sum_a = reduce.Sum(scratch_a);
     // Needed because both calls to Sum share the same workspace memory.
     __syncthreads();
     uint32_t sum_b = reduce.Sum(scratch_b);
 
-    // Save the final result to global memory to return to the host.
+    // CUB returns the final reduction value in thread 0. Use a goal-specific
+    // function to translate the two values in sum_a and sum_b into a single
+    // fitness score.
     if (threadIdx.x == 0) {
         return finalize(sum_a, sum_b, result);
     }
@@ -153,6 +162,7 @@ __device__ void FitnessObserver<FitnessGoal::GLIDERS>::update(
     // If this cell is alive and so was the matching cell from last cycle but
     // did not just hold the same value the whole time, then this cell might be
     // part of a spaceship with the parameters set above.
+    // TODO: Wait, this is unused? Something must be broken here.
     in_spaceship = last_cycle && this_cycle && !always_alive;
 
     // If this cell was alive at some point in the last time_delta steps but
@@ -295,12 +305,12 @@ __device__ void FitnessObserver<FitnessGoal::THREE_CYCLE>::update(
         constexpr int mask = 0b111;
         const int pattern = history & mask;
         const bool repeat = (history >> 3 & mask) == pattern;
-        // If the last two steps were the same as the two steps before that AND
-        // the pattern wasn't just static, then this cell is cycling.
+        // If the last three steps were the same as the three steps before that
+        // AND the pattern wasn't just static, then this cell is cycling.
         cycling = repeat && pattern != 0b000 && pattern != 0b111;
         // Overwrite history with a count of cells that aren't cycling. That
-        // is, any cell that is not repeating and were alive in at least one of
-        // the last two steps.
+        // is, any cell that is not repeating and was alive in at least one of
+        // the last three steps.
         history = !repeat && pattern != 0b000;
     }
 }
@@ -335,7 +345,7 @@ __device__ void FitnessObserver<FitnessGoal::TWO_CYCLE>::update(
         // the pattern wasn't just static, then this cell is cycling.
         cycling = repeat && pattern != 0b00 && pattern != 0b11;
         // Overwrite history with a count of cells that aren't cycling. That
-        // is, any cell that is not repeating and were alive in at least one of
+        // is, any cell that is not repeating and was alive in at least one of
         // the last two steps.
         history = !repeat && pattern != 0b00;
     }
