@@ -1,3 +1,14 @@
+/*
+ * Bindings to expose C++ functions to Python.
+ *
+ * This code generates a single Python module named "kernel" which
+ * provides access to all operations needed to simulate and evolve
+ * large batches of GOL-based organisms in parallel on a GPU,
+ * constants for hyperparameters, and one-off functions for
+ * sampling evolved organisms from the population and testing the
+ * correct operation of the C++ code.
+ */
+
 #include <cstdio>
 #include <vector>
 #include <pybind11/pybind11.h>
@@ -15,6 +26,7 @@ namespace epigenetic_gol_kernel {
 
 namespace py = pybind11;
 
+// Add constants from environment.h to the module.
 void bind_environment(py::module_& m) {
     py::enum_<FitnessGoal>(m, "FitnessGoal")
         .value("EXPLODE", FitnessGoal::EXPLODE)
@@ -34,6 +46,10 @@ void bind_environment(py::module_& m) {
     m.attr("NUM_STEPS") = py::int_(NUM_STEPS);
 }
 
+// Add functions from gol_simulation.h to the module. The functions use numpy
+// arrays to represent arguments and return values in Python. These can use
+// exactly the same memory allocations and representation as C++, but must
+// be cast manually since pybind11 can't do it automatically.
 void bind_gol_simulation(py::module_& m) {
     m.def("simulate_phenotype",
         [](const py::array_t<Cell> phenotype) {
@@ -62,6 +78,9 @@ void bind_gol_simulation(py::module_& m) {
         });
 }
 
+// Add hyperparameters, enums, and structs from phenotype_program.h
+// to the module. Structs are represented as numpy dtypes so the Python
+// code can look up data by field name.
 void bind_phenotype_program(py::module_& m) {
     py::enum_<TransformMode>(m, "TransformMode")
         .value("NONE", TransformMode::NONE)
@@ -99,6 +118,9 @@ void bind_phenotype_program(py::module_& m) {
     m.attr("MAX_ARGUMENTS") = py::int_(MAX_ARGUMENTS);
 }
 
+// Add constants and test functions from reproduction.h to the module.
+// Pybind11 can automatically translate Python lists to C++ vectors,
+// but Genotype data must be manually cast to / from numpy arrays.
 void bind_reproduction(py::module_& m) {
     m.def("breed_population",
         [](const py::array_t<Genotype> genotypes,
@@ -117,10 +139,14 @@ void bind_reproduction(py::module_& m) {
     m.attr("MUTATION_RATE") = py::float_(MUTATION_RATE);
 }
 
+// Add the select function from selection.h to the module.
 void bind_selection(py::module_& m) {
     m.def("select", &select);
 }
 
+// Add the Simulator class to the module. As above, numpy arrays are
+// used to represent C++ arrays of structs in arguments and results
+// and must be cast manually.
 void bind_simulator(py::module_& m) {
     py::class_<Simulator>(m, "Simulator")
         .def(py::init<int, int, int>())
@@ -183,9 +209,21 @@ void bind_simulator(py::module_& m) {
  * The primary interface with Python is the Simulator class, which is mirrored
  * more or less 1:1 in the Python interface. There are also a few data types,
  * constants, and miscellaneous functions that are important for working with
- * the Simulator class and testing it.
+ * the Simulator class and testing it. This macro actually generates the full
+ * bindings for the kernel module, but the work is broken up into several
+ * functions defined above, one for each relevant header file.
+ *
+ * An alternative implementation would be to colocate Python bundings for
+ * functions with their declarations or definitions. This would avoid the need
+ * to make parallel edits to this file and the headers it references, and might
+ * improve build times. The problem with that design is it spreads references
+ * to pybind11 throughout the project, and some of those libraries choke the
+ * nvcc compiler, so it's simpler to keep all the bindings isolated here. Build
+ * times are still pretty reasonable.
  */
 PYBIND11_MODULE(kernel, m) {
+    // Special macro calls required to get pybind11 to generate numpy dtypes
+    // for various enums and index them so they can be used above.
     PYBIND11_NUMPY_DTYPE(Genotype, scalar_genes, stamp_genes);
     PYBIND11_NUMPY_DTYPE(ScalarArgument, gene_index, bias, bias_mode);
     PYBIND11_NUMPY_DTYPE(StampArgument, gene_index, bias, bias_mode);
