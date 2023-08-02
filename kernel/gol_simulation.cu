@@ -1,6 +1,8 @@
+// TODO: Why is environment included here? Either move it below or add a comment.
 #include "environment.h"
 #include "gol_simulation.h"
 
+// TODO: Unused
 #include <cub/cub.cuh>
 
 #include "cuda_utils.cuh"
@@ -11,11 +13,13 @@ namespace epigenetic_gol_kernel {
 
 namespace {
 
+// A parallel implementation of the GOL state transition function
 __device__ __host__ Cell get_next_state(
         const int& curr_row, const int& curr_col, const Frame& last_frame) {
     // Count up neighbors of this Cell that are ALIVE by looking at all the
     // adjacent Cells that are in bounds for this Frame. Bounds checking is
-    // done with min / max which is faster than using ifs or ternaries.
+    // done with min / max which is faster than using ifs or ternaries. This
+    // produces characteristic quirky behavior at the edges of the board. 
     const int prev_row = max(curr_row - 1, 0);
     const int next_row = min(curr_row + 1, WORLD_SIZE - 1);
     const int prev_col = max(curr_col - 1, 0);
@@ -86,13 +90,13 @@ __global__ void GolKernel(
         // Copy the most recently computed frame data into shared memory and
         // wait for it to finish before calling get_next_state below. Since
         // each thread works on CELLS_PER_THREAD contiguous Cells, we can do
-        // this with a single memcpy instead of a loop. Doing this well before
-        // it's needed seems to help hide the memory access latency.
+        // this with a single memcpy instead of a loop.
         memcpy(&last_frame[row][col], curr_frame, sizeof(curr_frame));
         __syncthreads();
 
-        // Record all simulations on demand. This check will be optimized away
-        // by the compiler.
+        // Record videos of all simulations, but only if requested because
+        // it's expensive to do that. This check will be optimized away by
+        // the compiler.
         if (RECORD) {
             memcpy(&videos[population_index][step][row][col],
                     curr_frame, sizeof(curr_frame));
