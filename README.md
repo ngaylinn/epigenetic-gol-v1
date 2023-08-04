@@ -5,11 +5,27 @@ Project by Nate Gaylinn:
 
 # Overview
 
-This project is a demonstration of an experimental evolutionary algorithm design (tentatively named an "epigenetic algorithm"). It's inspired by a simple observation: a gene sequence alone does not describe an organism, because amino acids don't have any inherent *meaning* in nature. Instead, the cell must *interpret* the gene sequence in order to build and operate a body, and that interpretation process was evolved along with the gene sequence. This project mimics that structure, evolving programs to solve a fitness challenge while also evolving an interpreter for those programs. The result is an algorithm that can search over a large space of possible phenotypes by learning which regions of that search space are best for evolving solutions to the fitness challenge.
+This project is a demonstration of an experimental evolutionary algorithm
+design (tentatively named an "epigenetic algorithm"). It's inspired by a simple
+observation: a gene sequence alone does not describe an organism, because amino
+acids don't have any inherent *meaning* in nature. Instead, the cell must
+*interpret* the gene sequence in order to build and operate a body, and that
+interpretation process was evolved along with the gene sequence. This project
+mimics that structure, evolving programs to solve a fitness challenge while
+also evolving an interpreter for those programs. The result is an algorithm
+that can search over a large space of possible phenotypes by learning which
+regions of that search space are best for evolving solutions to the fitness
+challenge.
 
-This project is based on an earlier [prototype](https://github.com/ngaylinn/epigenetic-gol-prototype). Since then, the goals of the project have become clearer. The design is simpler, in that it does fewer things, but more complicated, in that it does them in a more optimized way.
+This project is based on an earlier
+[prototype](https://github.com/ngaylinn/epigenetic-gol-prototype). Since then,
+the goals of the project have become clearer. The design is simpler, in that it
+does fewer things, but more complicated, in that it does them in a more
+optimized way.
 
-This algorithm is not yet particularly useful or scientifically informative. It's meant as an exploration of a wild idea, to justify [further exploration](#future-work)
+This algorithm is not yet particularly useful or scientifically informative.
+It's meant as an exploration of a wild idea, to justify [further
+exploration](#future-work)
 
 ## Game of Life
 
@@ -61,17 +77,38 @@ specialists, then automatically fine-tuned to a specific narrow task on demand.
 It might also produce results that are more open-ended, flexible, and life-like
 than traditional genetic algorithms.
 
-In biology, the notion that life "evolves for evolvability" is still controversial.
-The hope is this line of research might produce evidence in support of that hypothesis.
-Although not very [biologically realistic](#biological-realism), this project
-suggests that "evolving for evolvability" is an effective strategy that arises naturally
-from the sort of nested "program and interpreter" design seen in nature.
+In biology, the notion that life "evolves for evolvability" is still
+controversial. The hope is this line of research might produce evidence in
+support of that hypothesis. Although not very [biologically
+realistic](#biological-realism), this project suggests that "evolving for
+evolvability" is an effective strategy that arises naturally from the sort of
+nested "program and interpreter" design seen in nature.
 
 # Technical Overview
 
-This project uses a nested evolutionary algorithm. The ["outer loop"](#outer-loop-design) of the project evolves species&mdash;subsets of possible organisms, each with a range of possible forms. A species is represented by a `PhenotypeProgram`, which is used to turn a `Genotype` into a phenotype (in this case, a GOL simulation). The ["inner loop"](#inner-loop-design) holds the set of species constant and evolves a population of organisms for each `PhenotypeProgram`. It uses a process of [development](#genetics-and-development) to make a GOL simulation from each organism's `Genotype`, then scores that simulation based on one of several different fitness challenges. The fitness of a species is determined by how effective the inner loop is at evolving fit organisms.
+This project uses a nested evolutionary algorithm. The ["outer
+loop"](#outer-loop-design) of the project evolves species&mdash;subsets of
+possible organisms, each with a range of possible forms. A species is
+represented by a `PhenotypeProgram`, which is used to turn a `Genotype` into a
+phenotype (in this case, a GOL simulation). The ["inner
+loop"](#inner-loop-design) holds the set of species constant and evolves a
+population of organisms for each `PhenotypeProgram`. It uses a process of
+[development](#genetics-and-development) to make a GOL simulation from each
+organism's `Genotype`, then scores that simulation based on one of several
+different fitness challenges. The fitness of a species is determined by how
+effective the inner loop is at evolving fit organisms.
 
-The outer loop is implemented in Python, mostly because the code is simpler, more readable, and doesn't have to be high performance. It's purpose is to randomize and breed `PhenotypeProgram`s, run the inner loop, and analyze the results. The inner loop is written in C++ and is optimized for execution on a CUDA-enabled GPU. It's main purpose is to run many GOL simulations in parallel, though also evaluates the fitness of those simulations, and handles randomizing and breeding of organism populations. The primary interface between these two halves of the project are the `Simulator` class (which manages operations on populations of organisms in GPU memory) and the `PhenotypeProgram` data structure (which the outer loop evolves and the inner loop uses for development).
+The outer loop is implemented in Python, mostly because the code is simpler,
+more readable, and doesn't have to be high performance. It's purpose is to
+randomize and breed `PhenotypeProgram`s, run the inner loop, and analyze the
+results. The inner loop is written in C++ and is optimized for execution on a
+CUDA-enabled GPU. It's main purpose is to run many GOL simulations in parallel,
+though also evaluates the fitness of those simulations, and handles randomizing
+and breeding of organism populations. The primary interface between these two
+halves of the project are the `Simulator` class (which manages operations on
+populations of organisms in GPU memory) and the `PhenotypeProgram` data
+structure (which the outer loop evolves and the inner loop uses for
+development).
 
 ## Nested Evolution
 
@@ -79,15 +116,56 @@ TODO: Add links to code files
 
 TODO: Diagram of nested evolution
 
-The primary challenge with evolving a program to interpret gene sequences is *stability*. A traditional evolutionary algorithm requires a stable and relativel smooth [fitness landscape](https://en.wikipedia.org/wiki/Fitness_landscape#:~:text=In%20evolutionary%20biology%2C%20fitness%20landscapes,often%20referred%20to%20as%20fitness) in order to "get traction" on a problem, meaning it can tell when it's making progress by evolving in fruitful directions. Allowing the meaning of the gene sequence to change completely breaks this. Even a small mutation to a `PhenotypeProgram` completely reshapes the fitness landscape, making hill climbing impossible. To work around that problem, this project breaks evolution into two phases. The outer loop continuously evolves a popoulation of `PhenotypeProgram`s (species). The inner loop evolves a population of `Genotypes` (organisms), but *not* continously. In each generation of the outer loop, the inner loop starts over with a randomized organism population. While this makes nested evolution possible, it's not [biologically realistic](#biological-realism), and requires [special intervention](#genetics-and-development) for genotype-level innovations to persist as species evolve.
+The primary challenge with evolving a program to interpret gene sequences is
+*stability*. A traditional evolutionary algorithm requires a stable and
+relativel smooth [fitness
+landscape](https://en.wikipedia.org/wiki/Fitness_landscape#:~:text=In%20evolutionary%20biology%2C%20fitness%20landscapes,often%20referred%20to%20as%20fitness)
+in order to "get traction" on a problem, meaning it can tell when it's making
+progress by evolving in fruitful directions. Allowing the meaning of the gene
+sequence to change completely breaks this. Even a small mutation to a
+`PhenotypeProgram` completely reshapes the fitness landscape, making hill
+climbing impossible. To work around that problem, this project breaks evolution
+into two phases. The outer loop continuously evolves a popoulation of
+`PhenotypeProgram`s (species). The inner loop evolves a population of
+`Genotypes` (organisms), but *not* continously. In each generation of the outer
+loop, the inner loop starts over with a randomized organism population. While
+this makes nested evolution possible, it's not [biologically
+realistic](#biological-realism), and requires [special
+intervention](#genetics-and-development) for genotype-level innovations to
+persist as species evolve.
 
-Normally, to evolve GOL simulations with interesting qualities, a programmer would use their intuition to hand-design an evolutionary algorithm, using what they know about GOL and a specific fitness challenge to make the search process efficient enough to work. A major [motivation](#motivation) for this project is to avoid doing that, to search more broadly with less human bias. Instead, this algorithm is optimized to search over the domain of monochrome bitmap images, with no awareness of the GOL or any specific fitness challenge. This project provides many fitness challenges, chosen so that different evolutionary strategies are needed. This shows that a epigenetic algorithm can find effective evolutionary strategies to a variety of problems, all on its own.
+Normally, to evolve GOL simulations with interesting qualities, a programmer
+would use their intuition to hand-design an evolutionary algorithm, using what
+they know about GOL and a specific fitness challenge to make the search process
+efficient enough to work. A major [motivation](#motivation) for this project is
+to avoid doing that, to search more broadly with less human bias. Instead, this
+algorithm is optimized to search over the domain of monochrome bitmap images,
+with no awareness of the GOL or any specific fitness challenge. This project
+provides many fitness challenges, chosen so that different evolutionary
+strategies are needed. This shows that a epigenetic algorithm can find
+effective evolutionary strategies to a variety of problems, all on its own.
 
-An epigenetic algorithm produces two outputs: the best `PhenotypeProgram` (species) and `Genotype` (organism) for a given fitness challenge. These are combined to make the organism's phenotype, which is a GOL simulation. The fitness of that simulation is determined by counting which cells are alive and dead at different frames, looking for patterns that the programmer found "interesting." The fitness of a species is derived from those organism fitness scores, but in an indirect way. Species are evolved for *evolvability*, not fitness. As such, species fitness is determined by the performance of the inner loop&mdash;how well fitness of the whole population improved over many generations. This is approximated using a metric called the "weighted median integral."
+An epigenetic algorithm produces two outputs: the best `PhenotypeProgram`
+(species) and `Genotype` (organism) for a given fitness challenge. These are
+combined to make the organism's phenotype, which is a GOL simulation. The
+fitness of that simulation is determined by counting which cells are alive and
+dead at different frames, looking for patterns that the programmer found
+"interesting." The fitness of a species is derived from those organism fitness
+scores, but in an indirect way. Species are evolved for *evolvability*, not
+fitness. As such, species fitness is determined by the performance of the inner
+loop&mdash;how well fitness of the whole population improved over many
+generations. This is approximated using a metric called the "weighted median
+integral."
 
 TODO: Mention "weighted median integral" in the code comments, link to it here.
 
-Since the inner and outer loops of this project have different notions of fitness, it's best to think of them as two separate evoluationary searches. The inner loop searches for interesting GOL simulations within the search space defined by a particular `PhenotypeProgram`. The outer loop searches for subsets of the larger search space where interesting GOL simulations can be found. In other words, an epigenetic algorithm doesn't search for fit organisms, it searches for evolutionary algorithms that produce fit organisms.
+Since the inner and outer loops of this project have different notions of
+fitness, it's best to think of them as two separate evoluationary searches. The
+inner loop searches for interesting GOL simulations within the search space
+defined by a particular `PhenotypeProgram`. The outer loop searches for subsets
+of the larger search space where interesting GOL simulations can be found. In
+other words, an epigenetic algorithm doesn't search for fit organisms, it
+searches for evolutionary algorithms that produce fit organisms.
 
 TODO: Use images of starting populations to illustrate species variability
 
@@ -95,48 +173,220 @@ TODO: Use images of starting populations to illustrate species variability
 
 TODO: diagram of a PhenotypeProgram and Genotype with bindings
 
-The core challenge of this project is to evolve a grammar for the gene sequence of an evolutionary algorithm. Like any evolutionary algorithm, this project must evolve a `Genotype` that effectively solves a fitness challenge. What's different is that the *meaning* of that `Genotype` is not fixed, but is determined by a `PhenotypeProgram`, which gets evolved separately. The `Genotype` itself, then, is mostly just a sequence of bits. For practical reasons, those bits are organized into "genes" of two types: `Scalar` genes are unsigned 32-bit ints, and `Stamps` are 8x8 arrays of phenotype `Cell` values. These genes take on meaning when they get bound to `Argument`s in a `PhenotypeProgram`. `ScalarArgument`s are used to configure the behavior of an `Operation` (translate *this many* pixels to the right), while `StampArgument`s are used to encode portions of the phenotype literally (draw *this pattern* here).
+The core challenge of this project is to evolve a grammar for the gene sequence
+of an evolutionary algorithm. Like any evolutionary algorithm, this project
+must evolve a `Genotype` that effectively solves a fitness challenge. What's
+different is that the *meaning* of that `Genotype` is not fixed, but is
+determined by a `PhenotypeProgram`, which gets evolved separately. The
+`Genotype` itself, then, is mostly just a sequence of bits. For practical
+reasons, those bits are organized into "genes" of two types: `Scalar` genes are
+unsigned 32-bit ints, and `Stamps` are 8x8 arrays of phenotype `Cell` values.
+These genes take on meaning when they get bound to `Argument`s in a
+`PhenotypeProgram`. `ScalarArgument`s are used to configure the behavior of an
+`Operation` (translate *this many* pixels to the right), while `StampArgument`s
+are used to encode portions of the phenotype literally (draw *this pattern*
+here).
 
 TODO: step-by-step images of phenotype rendering
 
-The `PhenotypeProgram`, is like a tree of primitive functions (`Operations`) that does nothing but transform data from the organism's gene sequence and environment. For those familiar, it's a bit like the [NEAT](https://towardsdatascience.com/neat-an-awesome-approach-to-neuroevolution-3eca5cc7930f) algorithm for neuroevolution. This project uses two types of `Operations`. `DrawOperation`s actually write to the phenotype, usually by copying data from a `Stamp` gene. `TransformOperations` like `TRANSLATE`, `CROP`, `MIRROR` and `COPY` don't change the phenotype, but instead warp its coordinate system. They can either apply globally, which allows the `PhenotypeProgram` to position, transform, and repeat the pattern in a `Stamp` gene across the GOL board, or they apply to a `Stamp` gene, which can constrain what kinds of patterns will evolve and get drawn. Overall, a `PhenotypeProgram` consists of one or more `DrawOperations` that layer on top of each other using some `ComposeMode`, with zero or more `global_transforms` and `stamp_transforms` for each.
+The `PhenotypeProgram`, is like a tree of primitive functions (`Operations`)
+that does nothing but transform data from the organism's gene sequence and
+environment. For those familiar, it's a bit like the
+[NEAT](https://towardsdatascience.com/neat-an-awesome-approach-to-neuroevolution-3eca5cc7930f)
+algorithm for neuroevolution. This project uses two types of `Operations`.
+`DrawOperation`s actually write to the phenotype, usually by copying data from
+a `Stamp` gene. `TransformOperations` like `TRANSLATE`, `CROP`, `MIRROR` and
+`COPY` don't change the phenotype, but instead warp its coordinate system. They
+can either apply globally, which allows the `PhenotypeProgram` to position,
+transform, and repeat the pattern in a `Stamp` gene across the GOL board, or
+they apply to a `Stamp` gene, which can constrain what kinds of patterns will
+evolve and get drawn. Overall, a `PhenotypeProgram` consists of one or more
+`DrawOperations` that layer on top of each other using some `ComposeMode`, with
+zero or more `global_transforms` and `stamp_transforms` for each.
 
-One important aspect of how `Argument` binding works is that each `Genotype` actually has several genes of each type. Each `Argument` gets bound to one gene of the appropriate type, but multiple `Arguments` can bind to the same gene value. This allows for useful interactions between `Argument`s and `Operations`. For instance, a `TRANSLATE` `Operation` might always shift the phenotype *diagonally* if the row and column offset `Arguments` are bound to the same value. Similarly, a `CROP` and a `COPY` `Operation` could combine to take an N-cell-wide strip of a `Stamp` gene and repeat it exactly N cells to the left, ensuring the two `Operations` stay in sync even if N evolves to take on a different value.
+One important aspect of how `Argument` binding works is that each `Genotype`
+actually has several genes of each type. Each `Argument` gets bound to one gene
+of the appropriate type, but multiple `Arguments` can bind to the same gene
+value. This allows for useful interactions between `Argument`s and
+`Operations`. For instance, a `TRANSLATE` `Operation` might always shift the
+phenotype *diagonally* if the row and column offset `Arguments` are bound to
+the same value. Similarly, a `CROP` and a `COPY` `Operation` could combine to
+take an N-cell-wide strip of a `Stamp` gene and repeat it exactly N cells to
+the left, ensuring the two `Operations` stay in sync even if N evolves to take
+on a different value.
 
-As mentioned above, the [nested evolution](#nested-evolution) strategy used by this project has the unfortunate effect of throwing away evolved `Genotype`s each time a new generation of species is spawned. To work around that problem, this project uses the notion of `gene_bias`, which is loosely inspired by the natural process of [canalization](#biological-realism). This works by randomly fixing the value of a gene to some common value from the previous generation of organisms. While this prevents the gene value from evolving into something even better in the inner loop, it also allows the outer loop to quickly constrain the search space to variations of a pattern that has worked before. For now, `gene_bias` always works in this simple same way, though there are many possible variations to explore, such as having a soft preference for a gene value rather than a fixed value, or intentionally injecting randomness.
+As mentioned above, the [nested evolution](#nested-evolution) strategy used by
+this project has the unfortunate effect of throwing away evolved `Genotype`s
+each time a new generation of species is spawned. To work around that problem,
+this project uses the notion of `gene_bias`, which is loosely inspired by the
+natural process of [canalization](#biological-realism). This works by randomly
+fixing the value of a gene to some common value from the previous generation of
+organisms. While this prevents the gene value from evolving into something even
+better in the inner loop, it also allows the outer loop to quickly constrain
+the search space to variations of a pattern that has worked before. For now,
+`gene_bias` always works in this simple same way, though there are many
+possible variations to explore, such as having a soft preference for a gene
+value rather than a fixed value, or intentionally injecting randomness.
 
 ## Inner-Loop Design
 
-The nested evolution architecture for this project requires running a *lot* of GOL simulations. To evolve a population of species requires running many simulated generations of each one, and a species generation requires evolving a population of organisms over several generations. Making things worse, there's a lot of variability in an evolutionary algorithm, so this project runs each process of ecolution multiple times and considers the median performance. Overall, a single experiment in this project requires 1.4 billion simulated lifetimes (50 species x 5 trials x 150 generations x 50 organisms x 5 trials x 150 generations).
+The nested evolution architecture for this project requires running a *lot* of
+GOL simulations. To evolve a population of species requires running many
+simulated generations of each one, and a species generation requires evolving a
+population of organisms over several generations. Making things worse, there's
+a lot of variability in an evolutionary algorithm, so this project runs each
+process of ecolution multiple times and considers the median performance.
+Overall, a single experiment in this project requires 1.4 billion simulated
+lifetimes (50 species x 5 trials x 150 generations x 50 organisms x 5 trials x
+150 generations).
 
-To make that feasible, the inner loop of this project runs on a CUDA-enabled NVIDIA GPU. The code has been optimized so that in a development environment with a single RTX a5000 GPU it can compute ~300,000 lifetimes per second. This means a single species evolution experiment takes about 78 minutes on average (some `PhenotypeProgram`s take longer than others). Each experiment is broken into 5 species trials that take only 15-20 minutes to complete. The trials can be run independently and in any order, making it possible to get partial results for an experiment pretty quickly. Running further trials just tightens the error bars on the results.
+To make that feasible, the inner loop of this project runs on a CUDA-enabled
+NVIDIA GPU. The code has been optimized so that in a development environment
+with a single RTX a5000 GPU it can compute ~300,000 lifetimes per second. This
+means a single species evolution experiment takes about 78 minutes on average
+(some `PhenotypeProgram`s take longer than others). Each experiment is broken
+into 5 species trials that take only 15-20 minutes to complete. The trials can
+be run independently and in any order, making it possible to get partial
+results for an experiment pretty quickly. Running further trials just tightens
+the error bars on the results.
 
-In GPU programming, most performance problems come from context switching and memory transfers. To minimize these costs, this project runs 5 trials of 2500 organisms for a single generation of 100 simulated time steps as one batch operation. Further generations reuse the same memory allocations. This is implemented using the `Simulator` class, which manages all the GPU-side memory for this project and orchestrates all the function calls needed to evolve organisms and retrieve the results for analysis. It's relatively cheap to construct a new `Simulator` object, but that should still be avoided in an evolution loop that runs thousands of times. For this project, each species trial gets its own `Simulator`, which performs well and avoids a class of bugs where one trial might accidentally influence another.
+In GPU programming, most performance problems come from context switching and
+memory transfers. To minimize these costs, this project runs 5 trials of 2500
+organisms for a single generation of 100 simulated time steps as one batch
+operation. Further generations reuse the same memory allocations. This is
+implemented using the `Simulator` class, which manages all the GPU-side memory
+for this project and orchestrates all the function calls needed to evolve
+organisms and retrieve the results for analysis. It's relatively cheap to
+construct a new `Simulator` object, but that should still be avoided in an
+evolution loop that runs thousands of times. For this project, each species
+trial gets its own `Simulator`, which performs well and avoids a class of bugs
+where one trial might accidentally influence another.
 
-To minimize memory transfers between the GPU and host computer, `Genotype` data for the whole population stays GPU resident the whole time. That means randomizing and propagating `Genotypes` is performed on the GPU, not the CPU. This operation has much less parallelism than running GOL simulations, so it doesn't fully utilize the GPU device, but it's still more efficienty than shuttling `Genotype` data back and forth across the PCI bus on every organism generation. For randomness, this part of the project uses the cuRAND library. Breeding organisms is a relatively simple process (see `reproduction.cu`). Aligning `Genotypes` for crossover is trivial, since each one is just an array of genes, and only organisms of the same species are ever bred together. When two `Scalar` genes cross over, the value is taken from one of the parents randomly. When two `Stamp` genes cross over, half of the stamp pattern will come from one parent, half from the other.
+To minimize memory transfers between the GPU and host computer, `Genotype` data
+for the whole population stays GPU resident the whole time. That means
+randomizing and propagating `Genotypes` is performed on the GPU, not the CPU.
+This operation has much less parallelism than running GOL simulations, so it
+doesn't fully utilize the GPU device, but it's still more efficienty than
+shuttling `Genotype` data back and forth across the PCI bus on every organism
+generation. For randomness, this part of the project uses the cuRAND library.
+Breeding organisms is a relatively simple process (see `reproduction.cu`).
+Aligning `Genotypes` for crossover is trivial, since each one is just an array
+of genes, and only organisms of the same species are ever bred together. When
+two `Scalar` genes cross over, the value is taken from one of the parents
+randomly. When two `Stamp` genes cross over, half of the stamp pattern will
+come from one parent, half from the other.
 
-Selection (see `selection.cu`) is implemented using an algorithm known as [Stochastic Universal Sampling](https://en.wikipedia.org/wiki/Stochastic_universal_sampling). This technique will randomly make N selections from a population, where each individual is chosen in proportion to its fitness and may be chosen zero, one, or many times. Unlike other selection algorithms, however, this one avoids unlikely but possible and unhelpful outcomes, like selecting the same individual every time. When used for organism breeding, this operation is performed on the GPU, simultaneously computing selections for 250 populations of 50 organisms in one go. To avoid implementing this algorithm twice, the `select` method is also exposed as an API for outer loop to use on the CPU to perform selection on a single population of 50 species. This means the code is written once, but compiled for both the GPU and CPU devices.
+Selection (see `selection.cu`) is implemented using an algorithm known as
+[Stochastic Universal
+Sampling](https://en.wikipedia.org/wiki/Stochastic_universal_sampling). This
+technique will randomly make N selections from a population, where each
+individual is chosen in proportion to its fitness and may be chosen zero, one,
+or many times. Unlike other selection algorithms, however, this one avoids
+unlikely but possible and unhelpful outcomes, like selecting the same
+individual every time. When used for organism breeding, this operation is
+performed on the GPU, simultaneously computing selections for 250 populations
+of 50 organisms in one go. To avoid implementing this algorithm twice, the
+`select` method is also exposed as an API for outer loop to use on the CPU to
+perform selection on a single population of 50 species. This means the code is
+written once, but compiled for both the GPU and CPU devices.
 
-Most of the inner loop's time is spent running GOL simulations (see `gol_simulation.cu`). This begins by building the phenotype (see `development.cu`), which is the GOL world for the first time step of the organism's simulated lifetime. This involves evaluating the `PhenotypeProgram` for each organism's `Genotype`, as described [above](#genetics-and-development). Next, the GOL simulation is run for 100 time steps and fitness scores are computed. Since the GPU has very limited high-performance memory, actually recording each step of the GOL simulation slows things down dramatically and is only done on demand. Instead, each frame usually overwrites the memory used to compute the previous frame, which makes it impossible to get a view of the organism's full lifetime when computing fitness. This project uses a `FitnessObserver` class to work around this limitation. The `FitnessObserver` considers each step of the simulated life time as it's computed and records whatever data it needs to compute an overall fitness score when the simulation ends.
+Most of the inner loop's time is spent running GOL simulations (see
+`gol_simulation.cu`). This begins by building the phenotype (see
+`development.cu`), which is the GOL world for the first time step of the
+organism's simulated lifetime. This involves evaluating the `PhenotypeProgram`
+for each organism's `Genotype`, as described
+[above](#genetics-and-development). Next, the GOL simulation is run for 100
+time steps and fitness scores are computed. Since the GPU has very limited
+high-performance memory, actually recording each step of the GOL simulation
+slows things down dramatically and is only done on demand. Instead, each frame
+usually overwrites the memory used to compute the previous frame, which makes
+it impossible to get a view of the organism's full lifetime when computing
+fitness. This project uses a `FitnessObserver` class to work around this
+limitation. The `FitnessObserver` considers each step of the simulated life
+time as it's computed and records whatever data it needs to compute an overall
+fitness score when the simulation ends.
 
-The interface between the inner loop (written in C++) and the outer loop (written in Python) is a Python module named `kernel`. It's implemented using [pybind11](https://github.com/pybind/pybind11), which provides a simple macro language for mapping identifiers across the two languages. The `kernel` module most be [compiled](#execution) before it can be used in Python code. The `kernel` module consists of the `Simulator` class, the `PhenotypeProgram` and `Genotype` data structures (C++ structs that appear in Python as [Numpy](https://numpy.org/) dtypes), the core constants configuring inner loop behavior, and a few unbatched operations for use with small numbers of organisms / species or for testing.
+The interface between the inner loop (written in C++) and the outer loop
+(written in Python) is a Python module named `kernel`. It's implemented using
+[pybind11](https://github.com/pybind/pybind11), which provides a simple macro
+language for mapping identifiers across the two languages. The `kernel` module
+most be [compiled](#execution) before it can be used in Python code. The
+`kernel` module consists of the `Simulator` class, the `PhenotypeProgram` and
+`Genotype` data structures (C++ structs that appear in Python as
+[Numpy](https://numpy.org/) dtypes), the core constants configuring inner loop
+behavior, and a few unbatched operations for use with small numbers of
+organisms / species or for testing.
 
 ## Outer-Loop Design
 
-The outer loop of this project is responsible for evolving `PhenotypeProgram`s. It starts by randomly generating a population of 50 species (known as a `Clade`). This is done by starting with a single individual that has a minimal `PhenotypeProgram` (draw a single stamp with no transformations), and systematically generating a diverse set of mutant clones of that individual to fill out the rest of the population. It then invokes the inner loop to evolve organisms for all these species, and computes species fitness (see [above](#nested-evolution)) from the results. Cross breeding `PhenotypePrograms` is more complicated than `Genotypes` because their structure is more complex and open-ended. This project uses the concept of "innovation numbers" (borrowed from the [NEAT algorithm](https://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf)) to align tree structures and produce hybrid trees.
+The outer loop of this project is responsible for evolving `PhenotypeProgram`s.
+It starts by randomly generating a population of 50 species (known as a
+`Clade`). This is done by starting with a single individual that has a minimal
+`PhenotypeProgram` (draw a single stamp with no transformations), and
+systematically generating a diverse set of mutant clones of that individual to
+fill out the rest of the population. It then invokes the inner loop to evolve
+organisms for all these species, and computes species fitness (see
+[above](#nested-evolution)) from the results. Cross breeding
+`PhenotypePrograms` is more complicated than `Genotypes` because their
+structure is more complex and open-ended. This project uses the concept of
+"innovation numbers" (borrowed from the [NEAT
+algorithm](https://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf)) to
+align tree structures and produce hybrid trees.
 
-Since the concept of an epigenetic algorithm is novel, and it's not yet entirely clear what it's good for or how to implement well, this project explores a few variations of the algorithm to see what's important. These variations are managed using the `Constraints` dataclass defined in `phenotype_program.py`. It consists of three independent boolean variables: whether to use gene bias / simulated canalization or not, whether to allow multiple draw operations or just one, and whether to allow transformations on `Stamp` genes or only global transformations (see [above](#genetics-and-development)). Each experiment has a fixed set of constraints and a fixed fitness goal, and this project runs many experiments to see how the different constraints affect performance across many fitness goals. The code for actually running an experiment and collecting data can be found in `experiments.py`.
+Since the concept of an epigenetic algorithm is novel, and it's not yet
+entirely clear what it's good for or how to implement well, this project
+explores a few variations of the algorithm to see what's important. These
+variations are managed using the `Constraints` dataclass defined in
+`phenotype_program.py`. It consists of three independent boolean variables:
+whether to use gene bias / simulated canalization or not, whether to allow
+multiple draw operations or just one, and whether to allow transformations on
+`Stamp` genes or only global transformations (see
+[above](#genetics-and-development)). Each experiment has a fixed set of
+constraints and a fixed fitness goal, and this project runs many experiments to
+see how the different constraints affect performance across many fitness goals.
+The code for actually running an experiment and collecting data can be found in
+`experiments.py`.
 
-The main entry points for this project are `evolve_species.py` and `summarize_results.py`. The first of these takes a batch of experiments and runs them all, one trial at a time. In order to produce partial results quickly, it uses a breadth-first approach, running the first trial of all experiments before moving on to the second trial, the third, and so on. When each trial completes, `evolve_species.py` automatically invokes `summarize_results.py` in a separate process to analyze the results and output a set of user-friendly summaries, including data tables, simulation videos, and charts. The `summarize_results.py` script can also be run independently, to iterate on the analysis and visualization process without re-running the evolutionary experiments.
+The main entry points for this project are `evolve_species.py` and
+`summarize_results.py`. The first of these takes a batch of experiments and
+runs them all, one trial at a time. In order to produce partial results
+quickly, it uses a breadth-first approach, running the first trial of all
+experiments before moving on to the second trial, the third, and so on. When
+each trial completes, `evolve_species.py` automatically invokes
+`summarize_results.py` in a separate process to analyze the results and output
+a set of user-friendly summaries, including data tables, simulation videos, and
+charts. The `summarize_results.py` script can also be run independently, to
+iterate on the analysis and visualization process without re-running the
+evolutionary experiments.
 
-The outer loop also provides a few development tools. `benchmark.py` is used for tuning performance of the inner loop. It basically just invokes that code a few times to get an accurate runtime measurement, then compares that to prior runs. `trace_species_evolution` is for debugging and fine-tuning the species evolution process. It runs the first few generations of a single experiment, generating an in-depth summary of the evolutionary algorithm results from the inner-loop. This helps visualize what each `PhenotypeProgram` actually does, and what how that influences the next generation. There's also a suite of `tests` which mostly serve to document and validate the behavior of the C++ code of the inner loop (it's tested in Python for convenience and personal preference). The outer loop is relatively simple and easy to verify, so `test_phenotype_program.py` is the only test for the Python code.
+The outer loop also provides a few development tools. `benchmark.py` is used
+for tuning performance of the inner loop. It basically just invokes that code a
+few times to get an accurate runtime measurement, then compares that to prior
+runs. `trace_species_evolution` is for debugging and fine-tuning the species
+evolution process. It runs the first few generations of a single experiment,
+generating an in-depth summary of the evolutionary algorithm results from the
+inner-loop. This helps visualize what each `PhenotypeProgram` actually does,
+and what how that influences the next generation. There's also a suite of
+`tests` which mostly serve to document and validate the behavior of the C++
+code of the inner loop (it's tested in Python for convenience and personal
+preference). The outer loop is relatively simple and easy to verify, so
+`test_phenotype_program.py` is the only test for the Python code.
 
 ## Execution
 
-This project requires a CUDA-enabled GPU to run. It was developed on a machine with a single RTX a5000 GPU ([Compute Capability
-8.6](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities). It could likely be run on other GPU devices without trouble, but this may require some mucking around with the thread and block constants in `environment.h`, the convenience functions in `cuda_utils.h`, or the build configuration in `CMakeLists.txt`.
+This project requires a CUDA-enabled GPU to run. It was developed on a machine
+with a single RTX a5000 GPU ([Compute Capability
+8.6](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities).
+It could likely be run on other GPU devices without trouble, but this may
+require some mucking around with the thread and block constants in
+`environment.h`, the convenience functions in `cuda_utils.h`, or the build
+configuration in `CMakeLists.txt`.
 
-This project is built using CMake. It requires Python 3.10 (other version numbers may also work), [pybind11](https://github.com/pybind/pybind11), and the standard CUDA development libraries. It also depends on several common Python modules, which can be installed with:
+This project is built using CMake. It requires Python 3.10 (other version
+numbers may also work), [pybind11](https://github.com/pybind/pybind11), and the
+standard CUDA development libraries. It also depends on several common Python
+modules, which can be installed with:
+
 ```bash
 # For managing and analyzing experiment data
 pip install numpy
@@ -154,27 +404,114 @@ pip install Pillow
 pip install tqdm
 ```
 
-Before running any of the python code and after any changes to the C++ code, be sure to run `cmake kernel` to build the C++ code and its Python module interface. You can also run `cmake cpp_demo` to build a standalone C++ binary (`cpp_demo`) that runs the inner loop through its paces without any Python code. This is primarily for analyzing performance of the C++ code using Nvidia's CUDA debug tools, where the Python code would add nothing and could possibly obscure things.
+Before any of the Python code will work, and after any changes to the C++ code
+the kernel module must be compiled. To setup CMake to build the kernel module,
+run `cmake kernel`. After that, the kernel module can be built by running
+`make kernel`. You can also run `make cpp_demo` to build a standalone C++
+binary (`cpp_demo`) that runs the inner loop through its paces without any
+Python code. This is primarily for analyzing performance of the C++ code using
+Nvidia's CUDA debug tools, where the Python code would add nothing and could
+possibly obscure things.
 
 This project offers several Python scripts:
-* `python3 evolve_species.py`: Runs all experiments found in `experiments.experiment_list` and invokes `summarize_results.py` to render the results. Takes no arguments. This script can take many hours or even days to complete, depending on the list of experiments. Progress is saved after every trial (~20 minutes on the original development machine). Typing Ctrl-C once will gracefully exit after the current trial completes, and typing it a second time does a forced quit, losing any unsaved progress.
-* `python3 summarize_results.py': Reads experiment data produced by `evolve_species.py` and uses it to generate data tables, simulation videos, and charts summarizing the results. By default, this script renders outputs for any experiments with new data, but when passed the `--rebuild` argument, it will re-render outputs for all computed experiment data. Running this script before any experiments have run has no effect.
-* `python3 benchmark.py`: Runs the inner loop through its paces, measures how long it takes, and compares that runtime against prior runs. Output is noramally just a data table printed to the console, but pass the `--chart` argument if you'd like a visualization of the past few runs.
-* `python3 trace_species_evolution.py`: Runs a few generations of species evolution and produces an in-depth summary of each. Takes no arguments. To configure species evolution, just modify the constants at the top of the `main` function.
-* `python3 -m unittest discover`: Runs all unit tests and reports any failures. These tests are mostly just a sanity check that everything in the inner loop is working properly. They also generate a weath of images in directories named `tests/test_*` which serve to visualize the outputs of various kernel operations and document what they do.
+* `python3 evolve_species.py`: Runs all experiments found in
+  `experiments.experiment_list` and invokes `summarize_results.py` to render
+  the results. Takes no arguments. This script can take many hours or even days
+  to complete, depending on the list of experiments. Progress is saved after
+  every trial (~20 minutes on the original development machine). Typing Ctrl-C
+  once will gracefully exit after the current trial completes, and typing it a
+  second time does a forced quit, losing any unsaved progress.
+* `python3 summarize_results.py': Reads experiment data produced by
+  `evolve_species.py` and uses it to generate data tables, simulation videos,
+  and charts summarizing the results. By default, this script renders outputs
+  for any experiments with new data, but when passed the `--rebuild` argument,
+  it will re-render outputs for all computed experiment data. Running this
+  script before any experiments have run has no effect.
+* `python3 benchmark.py`: Runs the inner loop through its paces, measures how
+  long it takes, and compares that runtime against prior runs. Output is
+  noramally just a data table printed to the console, but pass the `--chart`
+  argument if you'd like a visualization of the past few runs.
+* `python3 trace_species_evolution.py`: Runs a few generations of species
+  evolution and produces an in-depth summary of each. Takes no arguments. To
+  configure species evolution, just modify the constants at the top of the
+  `main` function.
+* `python3 -m unittest discover`: Runs all unit tests and reports any failures.
+  These tests are mostly just a sanity check that everything in the inner loop
+  is working properly. They also generate a weath of images in directories
+  named `tests/test_*` which serve to visualize the outputs of various kernel
+  operations and document what they do.
 
 # Biological Realism
 
-This project is inspired by cellular biology, but is not intended to model or simulate a cell in a realistic way. Its main purpose is to explore the idea of an evolved program to interpet a gene sequence. Normally, the developer of an evolutionary algorithm must invent a genetic language and development process to fit the task at hand, and merely evolves a gene sequence in that language that performs well on some fitness goal. In this project, the building blocks of such a language are provided by the programmer, but get assembled into species-specific languages that are evolved, not designed by hand. This idea is taken from real life, but implemented in the simplest way possible, which is not at all how cells do it.
+This project is inspired by cellular biology, but is not intended to model or
+simulate a cell in a realistic way. Its main purpose is to explore the idea of
+an evolved program to interpet a gene sequence. Normally, the developer of an
+evolutionary algorithm must invent a genetic language and development process
+to fit the task at hand, and merely evolves a gene sequence in that language
+that performs well on some fitness goal. In this project, the building blocks
+of such a language are provided by the programmer, but get assembled into
+species-specific languages that are evolved, not designed by hand. This idea is
+taken from real life, but implemented in the simplest way possible, which is
+not at all how cells do it.
 
-Perhaps the least realistic part of the project is the [nested evolution](#nested-evolution) architecture. Obviously, nature does not evolve species in discrete generations, spawning a new randomized population of organisms each time. It would be interesting to explore other, more natural, continuous ways of doing this, but solving that problem wasn't necessary to study evolved gene sequence interpreters.
+Perhaps the least realistic part of the project is the [nested
+evolution](#nested-evolution) architecture. Obviously, nature does not evolve
+species in discrete generations, spawning a new randomized population of
+organisms each time. It would be interesting to explore other, more natural,
+continuous ways of doing this, but solving that problem wasn't necessary to
+study evolved gene sequence interpreters.
 
-The division of `PhenotypeProgram`, `Genotype`, and `make_phenotype` is also pretty unrealistic. In nature, these concepts are tangled together into one complex system, consisting of DNA molecules and a whole host of associated molecules and cellular processes. It's also pretty weird that development happens all at once when an organism is spawned, and then the rest of the organism's life is computed from that phenotype in a fully deterministic way. Development and living life are more dynamic, continuous, and interactive for a natural organism. Finally, the term "development" is most often applied to multicellular organisms that assemble and grow a complex body, but this project operates more like a single cell directing its own growth. It does not involve collaboration of many independent cells, each consulting their own gene sequence, with cell-type differentiation, and so on.
+The division of `PhenotypeProgram`, `Genotype`, and `make_phenotype` is also
+pretty unrealistic. In nature, these concepts are tangled together into one
+complex system, consisting of DNA molecules and a whole host of associated
+molecules and cellular processes. It's also pretty weird that development
+happens all at once when an organism is spawned, and then the rest of the
+organism's life is computed from that phenotype in a fully deterministic way.
+Development and living life are more dynamic, continuous, and interactive for a
+natural organism. Finally, the term "development" is most often applied to
+multicellular organisms that assemble and grow a complex body, but this project
+operates more like a single cell directing its own growth. It does not involve
+collaboration of many independent cells, each consulting their own gene
+sequence, with cell-type differentiation, and so on.
 
-The design of the `PhenotypeProgram` and `Genotype` bear a passing resemblence to their natural counterparts. Some aspects of the `PhenotypeProgram` resemble things like methylation or hox genes, but only obliquely. [Methylation](https://en.wikipedia.org/wiki/DNA_methylation) is a natural system used to annotate a gene sequence to change how it gets read and copied by the cell. [Hox genes](https://en.wikipedia.org/wiki/Hox_gene) serve as a general purpose body-building mechanism shared by all animals. The `Genotype`s division into `Stamp` and `Scalar` genes is a bit like [protein-coding and regulatory genes](https://en.wikipedia.org/wiki/Human_genome#Coding_vs._noncoding_DNA) in a biological cell. Resemblance to these things was *not* a goal of this project, but emerged naturally from the requirements of this data structure, which is interesting. It's also significant that `PhenotypeProgram`s do not invoke genes in sequential order, but instead use random-access lookup. This was intentionally borrowed from nature to make the results of development more life-like, but the way its implemented is quite different from nature's [gene regulatory networks](https://en.wikipedia.org/wiki/Gene_regulatory_network).
+The design of the `PhenotypeProgram` and `Genotype` bear a passing resemblence
+to their natural counterparts. Some aspects of the `PhenotypeProgram` resemble
+things like methylation or hox genes, but only obliquely.
+[Methylation](https://en.wikipedia.org/wiki/DNA_methylation) is a natural
+system used to annotate a gene sequence to change how it gets read and copied
+by the cell. [Hox genes](https://en.wikipedia.org/wiki/Hox_gene) serve as a
+general purpose body-building mechanism shared by all animals. The `Genotype`s
+division into `Stamp` and `Scalar` genes is a bit like [protein-coding and
+regulatory
+genes](https://en.wikipedia.org/wiki/Human_genome#Coding_vs._noncoding_DNA) in
+a biological cell. Resemblance to these things was *not* a goal of this
+project, but emerged naturally from the requirements of this data structure,
+which is interesting. It's also significant that `PhenotypeProgram`s do not
+invoke genes in sequential order, but instead use random-access lookup. This
+was intentionally borrowed from nature to make the results of development more
+life-like, but the way its implemented is quite different from nature's [gene
+regulatory networks](https://en.wikipedia.org/wiki/Gene_regulatory_network).
 
-The concept of "gene bias" (see [above](#genetics-and-development)) was inspired by [canalization](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5217179/) in nature. This is the phenomenon where an organism's most critical behaviors become supported by many intertwined genetic pathways, making it so a failure in any one of those pathways won't disrupt proper functioning. Conceptually, canalization constrains what phenotypes are possible, making certain genetic variations equivalent so mutations in those places have no effect. Gene bias works very differently, but serves the same purpose of constraining the search space to just phenotypes that include certain critical behaviors established by prior generations.
+The concept of "gene bias" (see [above](#genetics-and-development)) was
+inspired by
+[canalization](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5217179/) in
+nature. This is the phenomenon where an organism's most critical behaviors
+become supported by many intertwined genetic pathways, making it so a failure
+in any one of those pathways won't disrupt proper functioning. Conceptually,
+canalization constrains what phenotypes are possible, making certain genetic
+variations equivalent so mutations in those places have no effect. Gene bias
+works very differently, but serves the same purpose of constraining the search
+space to just phenotypes that include certain critical behaviors established by
+prior generations.
 
-Although it's true of pretty much *every* evolutionary algorithm, it's worth noting that the way fitness and selection work in this project  is profoundly undrealistic. Nature doesn't have any sort of explicit fitness function or authoritative judge of fitness. Organisms merely survive (or not) and reproduce (or not) selecting a mate (or not) as they please.
+Although it's true of pretty much *every* evolutionary algorithm, it's worth
+noting that the way fitness and selection work in this project  is profoundly
+undrealistic. Nature doesn't have any sort of explicit fitness function or
+authoritative judge of fitness. Organisms merely survive (or not) and reproduce
+(or not) selecting a mate (or not) as they please.
 
-Similarly, organisms normally compete and collaborate with each other in a shared physical space, but in this project each individual is isolated. Their environment consists of nothing but their phenotype, and the only interaction they have with each other is at reproduction tie and micro-managed by the evolutionary framework.
+Similarly, organisms normally compete and collaborate with each other in a
+shared physical space, but in this project each individual is isolated. Their
+environment consists of nothing but their phenotype, and the only interaction
+they have with each other is at reproduction tie and micro-managed by the
+evolutionary framework.
