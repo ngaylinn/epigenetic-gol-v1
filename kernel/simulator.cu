@@ -2,6 +2,7 @@
 #include "phenotype_program.h"
 #include "simulator.h"
 
+// TODO: Unused?
 #include <vector>
 
 #include "cuda_utils.cuh"
@@ -11,6 +12,8 @@
 
 namespace epigenetic_gol_kernel {
 
+// A convenience class for allocating, initializing, and freeing all of
+// the GPU-side data objects used by Simulation.
 class Simulator::DeviceAllocations {
     friend class Simulator;
     private:
@@ -41,6 +44,8 @@ Simulator::Simulator(
       num_organisms(num_organisms),
       size(num_species * num_trials * num_organisms) {
     d = new DeviceAllocations(num_species, size);
+    // Normally the caller would seed the Simulator manually, but convenience
+    // and safety, make sure the RNGs always get initialized to SOMETHING.
     seed(42);
 }
 
@@ -66,9 +71,9 @@ void Simulator::propagate() {
             size, d->parent_selections, d->mate_selections,
             d->curr_gen_genotypes, d->next_gen_genotypes, d->rngs);
 
-    // After generationg next_gen_genotypes from curr_gen_genotypes, swap the
-    // two pointers so that the the new data is "current" and the old data may
-    // be overwritten to compute the next generation.
+    // After generating next_gen_genotypes from curr_gen_genotypes, swap the
+    // two pointers so that the the new data is considered current and the old
+    // data may be overwritten to compute the next generation.
     d->curr_gen_genotypes.swap(d->next_gen_genotypes);
 }
 
@@ -130,21 +135,14 @@ void Simulator::seed(const unsigned int seed_value) {
 
 int main(int argc, char* argv[]) {
     using namespace epigenetic_gol_kernel;
-    Simulator simulator(32, 5, 32);
+    Simulator simulator(50, 5, 50);
     FitnessGoal goal = FitnessGoal::STILL_LIFE;
-    PhenotypeProgram programs[32];
-    for (int i = 0; i < 32; i++) {
+    PhenotypeProgram programs[50];
+    for (int i = 0; i < 50; i++) {
         programs[i].draw_ops[0].compose_mode = ComposeMode::OR;
         programs[i].draw_ops[0].global_transforms[0].type =
             TransformMode::TILE;
     }
-    simulator.populate(programs);
-    for (int i = 0; i < 199; i++) {
-        simulator.simulate(goal);
-        simulator.propagate();
-        // Include this GPU->host data transfer that the real project requires.
-        simulator.get_fitness_scores();
-    }
-    simulator.simulate(goal);
+    simulator.evolve(programs, goal, 200);
     return 0;
 }
