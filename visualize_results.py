@@ -64,7 +64,7 @@ def summarize_species_data(species_data, species_path):
     np.save(
         species_path.joinpath('best_organism_genotype.npy'),
         best_organism.genotype)
-    gif_files.save_image(
+    gif_files.save_simulation_data_as_image(
         simulate_organism(
             species_data.phenotype_program.serialize(),
             best_organism.genotype),
@@ -112,7 +112,7 @@ def summarize_experiment_data(experiment):
     random_populations = get_random_population(
         experiment_data.best_species_per_trial)
     best_fitness = 0
-    best_video = None
+    best_simulation = None
     for trial in range(experiment.trial + 1):
         # Generate output for this species
         species_data = experiment_data.best_species_per_trial[trial]
@@ -124,30 +124,30 @@ def summarize_experiment_data(experiment):
 
         # Save the best video for each trial, and track best overall
         best_organism = species_data.best_organism
-        video = simulate_organism(
+        simulation = simulate_organism(
             species_data.phenotype_program.serialize(),
             best_organism.genotype)
         fitness = best_organism.fitness
-        gif_files.save_image(
-            video,
+        gif_files.save_simulation_data_as_image(
+            simulation,
             experiment.path.joinpath(
                 f'best_organism_from_trial_{trial}_f{fitness}.gif'))
         # TODO: compare organisms directly, or remove comparison support in the
         # OrganismData class.
         if fitness > best_fitness:
             best_fitness = fitness
-            best_video = video
+            best_simulation = simulation
 
         # Save a sample random population to visualize this species.
         population_path = species_path.joinpath('random_initial_population')
         population_path.mkdir()
         for index, video in enumerate(random_populations[trial]):
-            gif_files.save_image(
+            gif_files.save_simulation_data_as_image(
                 video, population_path.joinpath(f'sample_{index:02d}.gif'))
 
     # Save the overall best organism found for this experiment.
-    gif_files.save_image(
-        best_video,
+    gif_files.save_simulation_data_as_image(
+        best_simulation,
         experiment.path.parent.joinpath(
             f'{experiment.name}_f{best_fitness}.gif'))
 

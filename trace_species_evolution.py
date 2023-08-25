@@ -92,7 +92,7 @@ def main():
             fitness = organism_fitness[
                 species_index, trial_index, organism_index, -1]
             video = videos[species_index][trial_index][organism_index]
-            gif_files.save_image(
+            gif_files.save_simulation_data_as_image(
                 video, f'{path}/best_for_species{species_index:02d}.gif')
             if fitness > best_fitness:
                 best_fitness = fitness
@@ -106,7 +106,7 @@ def main():
                 f'{species_fitness[species_index]}, {fitness}')
             axis.tick_params(bottom=False, left=False,
                              labelbottom=False, labelleft=False)
-            gif_files.add_image_to_figure(video[0], fig, axis)
+            gif_files.add_simulation_data_to_figure(video[0], fig, axis)
 
             if num_children[species_index] > 0:
                 plt.setp(axis.spines.values(), color='#ff0000')
@@ -116,7 +116,8 @@ def main():
         fig.savefig(f'{path}/summary.png')
         plt.clf()
 
-        gif_files.save_image(best_video, f'{path}/best_organism.gif')
+        gif_files.save_simulation_data_as_image(
+            best_video, f'{path}/best_organism.gif')
 
         progress_bar.update()
     progress_bar.close()
@@ -134,14 +135,14 @@ def glider_fitness(video):
         np.logical_and(
             video[-2] == video[-3],
             video[-3] == video[-4]))
-    gif_files.display_image(static * 255)
+    gif_files.display_simulation_data(static * 255)
     repeating = np.count_nonzero(
         np.logical_and(
             np.logical_not(static),
             np.logical_and(
                 before == int(Cell.ALIVE),
                 after == int(Cell.ALIVE))))
-    gif_files.display_image(
+    gif_files.display_simulation_data(
         np.logical_and(
             before == int(Cell.ALIVE),
             after == int(Cell.ALIVE)) * 255)
@@ -182,14 +183,14 @@ def debug_cycling(num_frames, video):
     print(f'Not cycling: {not_cycling}')
     print(f'Fitness: {(100 * cycling) / (1 + not_cycling)}')
     overlay = last_cycle // num_frames + prev_cycle // num_frames
-    gif_files.display_image(overlay)
+    gif_files.display_simulation_data(overlay)
 
 
 if __name__ == '__main__':
-    # o22 = gif_files.load_image('output/trace/gen000/best_for_species22.gif')
-    # o29 = gif_files.load_image('output/trace/gen000/best_for_species29.gif')
+    # o22 = gif_files.load_simulation_data_from_image('output/trace/gen000/best_for_species22.gif')
+    # o29 = gif_files.load_simulation_data_from_image('output/trace/gen000/best_for_species29.gif')
     # glider_fitness(o22)
     # glider_fitness(o29)
     main()
     # debug_cycling(
-    #     2, gif_files.load_image('output/trace/gen000/best_for_species40.gif'))
+    #     2, gif_files.load_simulation_data_from_image('output/trace/gen000/best_for_species40.gif'))

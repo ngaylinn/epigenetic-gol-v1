@@ -33,11 +33,11 @@ def visualize_genotype(genotype):
             np.full((2, scaled_value), 0x00, dtype=np.uint8),
             ((0, 0), (0, STAMP_SIZE - scaled_value)),
             constant_values=0xFF)
-        gif_files.add_image_to_figure(scalar_viz, fig, axis)
+        gif_files.add_simulation_data_to_figure(scalar_viz, fig, axis)
         axis.set_title(f'{100 * raw_value / (0xFFFFFFFF):0.2f}%')
     for gene_index in range(cols):
         axis = fig.add_subplot(2, cols, cols + gene_index + 1)
-        gif_files.add_image_to_figure(
+        gif_files.add_simulation_data_to_figure(
             genotype['stamp_genes'][gene_index], fig, axis)
 
 

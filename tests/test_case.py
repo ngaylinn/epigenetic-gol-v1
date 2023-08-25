@@ -17,6 +17,7 @@ class TestCase(unittest.TestCase):
     """A base TestCase for this project with useful assertions."""
 
     def get_test_data_location(self):
+        """Generate a per-test directory name for golden file data."""
         class_name, test_name = self.id().split('.')[-2:]
         path = f'tests/{snake_case(class_name)}/'
         os.makedirs(path, exist_ok=True)
@@ -46,22 +47,16 @@ class TestCase(unittest.TestCase):
             0, diffs,
             f'Arrays differ in {diffs} of {size} positions: {msg}')
 
-    def assertImagesEqual(self, image1, image2):
-        """A debug method for comparing two images or videos."""
-        if np.array_equal(image1, image2):
+    def assertSimulationEqual(self, simulation1, simulation2):
+        """Assert that two simulation frames or videos are the same."""
+        if np.array_equal(simulation1, simulation2):
             return
         fig = plt.figure('Arguments do not match.')
-        fig.add_subplot(1, 2, 1)
-        a1 = gif_files.add_image_to_figure(image1, fig)
-        fig.add_subplot(1, 2, 2)
-        a2 = gif_files.add_image_to_figure(image2, fig)
+        axis = fig.add_subplot(1, 2, 1)
+        a1 = gif_files.add_simulation_data_to_figure(simulation1, fig, axis)
+        axis = fig.add_subplot(1, 2, 2)
+        a2 = gif_files.add_simulation_data_to_figure(simulation2, fig, axis)
         plt.show()
-
-    def assertAllImagesEqual(self, image_list, prototype=None):
-        if prototype is None:
-            prototype = image_list.pop()
-        for other_image in image_list:
-            self.assertImagesEqual(prototype, other_image)
 
     def assertGolden(self, data, test_id=None):
         """Verify that frame matches output from a previous run.
@@ -90,7 +85,7 @@ class TestCase(unittest.TestCase):
             test_name = f'{test_name}_{test_id}'
         filename = f'{path}/{test_name}.gif'
         if os.path.exists(filename):
-            golden_data = gif_files.load_image(filename)
+            golden_data = gif_files.load_simulation_data_from_image(filename)
             if np.array_equal(data, golden_data):
                 return
             # At this point, a golden image was found and it doesn't match the
@@ -99,19 +94,19 @@ class TestCase(unittest.TestCase):
             fig = plt.figure(message)
             axis = fig.add_subplot(1, 2, 1)
             axis.set_title('argument')
-            a1 = gif_files.add_image_to_figure(data, fig, axis)
+            a1 = gif_files.add_simulation_data_to_figure(data, fig, axis)
             axis = fig.add_subplot(1, 2, 2)
             axis.set_title('golden')
-            a2 = gif_files.add_image_to_figure(golden_data, fig, axis)
+            a2 = gif_files.add_simulation_data_to_figure(golden_data, fig, axis)
             plt.show()
             self.fail(message)
         else:
             # If the golden file wasn't found, the directory for golden files
             # might not even be set up yet, so make sure it exists.
-            gif_files.save_image(data, filename)
+            gif_files.save_simulation_data_as_image(data, filename)
             fig = plt.figure(f'{test_name}: Please manually verify.')
             axis = fig.add_subplot(1, 1, 1)
-            animation = gif_files.add_image_to_figure(data, fig, axis)
+            animation = gif_files.add_simulation_data_to_figure(data, fig, axis)
             plt.show()
             print('No golden file found, so the argument has been saved '
                   'as the new golden file. Please validate and delete the '

@@ -1,4 +1,4 @@
-"""Save, load, and display simulation videos as gif files.
+"""Save, load, and display GOL simulation videos as gif files.
 
 This project generates Game of Life simulations as Numpy arrays, but these get
 serialized to disk and displayed in the form of gif images (either single
@@ -22,7 +22,7 @@ MILLISECONDS_PER_FRAME = 100
 MILLISECONDS_FOR_PHENOTYPE = 10 * MILLISECONDS_PER_FRAME
 
 
-def make_image(frame):
+def simulation_data_to_image(frame):
     """Create a single Image from a 2D Numpy array."""
     scale = IMAGE_SCALE_FACTOR
     resized = frame.repeat(scale, 0).repeat(scale, 1)
@@ -30,7 +30,7 @@ def make_image(frame):
     return image
 
 
-def save_image(data, filename):
+def save_simulation_data_as_image(data, filename):
     """Save an image or video to a file.
 
     Parameters
@@ -41,9 +41,10 @@ def save_image(data, filename):
     filename : a string describing where to save the file.
     """
     if data.ndim == 2:
-        make_image(data).save(filename)
+        simulation_data_to_image(data).save(filename)
         return
-    images = [make_image(frame) for frame in data]
+    assert data.ndim == 3
+    images = [simulation_data_to_image(frame) for frame in data]
     durations = [MILLISECONDS_FOR_PHENOTYPE]
     durations.extend([MILLISECONDS_PER_FRAME] * (len(images) - 1))
     images[0].save(
@@ -51,13 +52,13 @@ def save_image(data, filename):
         duration=durations)
 
 
-def make_array(image):
+def image_to_simulation_data(image):
     """Create a 2D Numpy array from a single Image."""
     raw_data = np.array(image.convert('L'), dtype=np.uint8)
     return raw_data[::IMAGE_SCALE_FACTOR, ::IMAGE_SCALE_FACTOR]
 
 
-def load_image(filename):
+def load_simulation_data_from_image(filename):
     """Load an image or video from a file.
 
     Parameters
@@ -73,25 +74,26 @@ def load_image(filename):
     with Image.open(filename) as image:
         n_frames = getattr(image, 'n_frames', 1)
         if n_frames == 1:
-            return make_array(image)
+            return image_to_simulation_data(image)
         frames = []
         for frame in range(n_frames):
             image.seek(frame)
             # When PIL exports gif files, it merges adjacent frames that are
             # equivalent and just increases the duration of the static frame.
-            # Unforuntately, there's no way to disable this. To restore the
-            # original frames, then, we must calculate how many frames got
-            # merged using the known duration per frame.
+            # That's a problem, since we expect all our videos to have the same
+            # number of frames, and there's no way to disable this behavior.
+            # To restore the original frames, then, we must calculate how many
+            # frames got merged using the known duration per frame.
             if frame > 0:
                 repeats = image.info['duration'] // MILLISECONDS_PER_FRAME
             else:
                 repeats = 1
             for _ in range(repeats):
-                frames.append(make_array(image))
+                frames.append(image_to_simulation_data(image))
         return np.array(frames)
 
 
-def add_image_to_figure(data, fig, axis):
+def add_simulation_data_to_figure(data, fig, axis):
     """Display an image in an existing PLT figure.
 
     Parameters
@@ -132,8 +134,9 @@ def add_image_to_figure(data, fig, axis):
     return anim
 
 
-def display_image(data):
+def display_simulation_data(data):
+    """Pop up a window visualizing simulation data as an image / video."""
     fig = plt.figure()
     axis = fig.add_subplot(1, 1, 1)
-    anim = add_image_to_figure(data, fig, axis)
+    anim = add_simulation_data_to_figure(data, fig, axis)
     plt.show()

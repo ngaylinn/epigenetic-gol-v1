@@ -47,20 +47,20 @@ class TestSimulation(test_case.TestCase):
             simulator = Simulator(3, 3, 32)
             clade = TestClade()
             simulator.populate(clade.serialize())
-            videos = simulator.simulate_and_record(goal)
+            simulations = simulator.simulate_and_record(goal)
             # Flatten out the collection of videos orgnanized by species,
             # trial, and organism into a flat list with one video for each
             # individual in the population.
-            result['videos'] = np.reshape(
-                videos, (-1, NUM_STEPS, WORLD_SIZE, WORLD_SIZE))
+            result['sims'] = np.reshape(
+                simulations, (-1, NUM_STEPS, WORLD_SIZE, WORLD_SIZE))
             result['fitness'] = simulator.get_fitness_scores()
             return result
         num_trials = 3
         results = [single_trial() for _ in range(num_trials)]
         prototype = results.pop()
         for result in results:
-            for (video1, video2) in zip(prototype['videos'], result['videos']):
-                self.assertImagesEqual(video1, video2)
+            for (sim1, sim2) in zip(prototype['sims'], result['sims']):
+                self.assertSimulationEqual(sim1, sim2)
             self.assertArrayEqual(prototype['fitness'], result['fitness'])
 
     def test_gpu_and_cpu_agree(self):
@@ -70,11 +70,11 @@ class TestSimulation(test_case.TestCase):
         clade = TestClade()
         simulator.populate(clade.serialize())
         # Grab just the first video from the GPU (the rest should be the same)
-        gpu_video = simulator.simulate_and_record(goal)[0][0][0]
+        gpu_simulation = simulator.simulate_and_record(goal)[0][0][0]
         # Run the CPU simulation with the same randomly generated phenotype we
         # used on the GPU, but then recompute the rest of the video.
-        cpu_video = simulate_phenotype(gpu_video[0])
-        self.assertImagesEqual(gpu_video, cpu_video)
+        cpu_simulation = simulate_phenotype(gpu_simulation[0])
+        self.assertSimulationEqual(gpu_simulation, cpu_simulation)
 
     def test_game_of_life(self):
         """A Game of Life simulation proceeds according to the rules."""
