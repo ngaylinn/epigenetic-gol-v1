@@ -1,3 +1,18 @@
+"""Define all experiment data collected by this project.
+
+This project is an experimental evolutionary algorithm. To better understand
+how it works and how various design decisions impact performance, the project
+tests various algorithm variants on a suite of different FitnessGoals. Because
+luck is a major factor in any evolutionary algorithm, it repeats each
+experiment NUM_TRIALS times to estimate average performance.
+
+The run_experiments script uses this module to define the set of experiments to
+run, generate result data, and manage that data on a filesystem. This module
+uses the evolution module to actually run the experiment and gather data, then
+it post-processes that data to record just the information needed by the
+visualize_results script.
+"""
+
 import functools
 import pathlib
 import pickle
@@ -5,138 +20,79 @@ import random
 
 import numpy as np
 import time
-import tqdm
 
-from kernel import FitnessDType, FitnessGoal, Simulator
-from phenotype_program import Clade, Constraints
+from evolution import (
+    NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS,
+    NUM_SPECIES_GENERATIONS, NUM_ORGANISM_GENERATIONS,
+    Clade)
+from kernel import FitnessDType, FitnessGoal
+from phenotype_program import Constraints
 
-NUM_SPECIES = 50
-NUM_TRIALS = 5
-NUM_ORGANISMS = 50
 POPULATION_SIZE = NUM_SPECIES * NUM_TRIALS * NUM_ORGANISMS
-
-NUM_SPECIES_GENERATIONS = 150
-NUM_ORGANISM_GENERATIONS = 150
 
 LIFETIMES_PER_TRIAL = (
     NUM_SPECIES_GENERATIONS * NUM_ORGANISM_GENERATIONS * POPULATION_SIZE)
 
-# Weight for computing species fitness. The first generation of organisms has
-# their fitness discounted by 50% while the last generation gets full credit.
-# By shaping these values to match the fitness_summary data, we can compute
-# fitness for all species simultaneously.
-WEIGHTS = np.full(
-    (NUM_SPECIES, NUM_ORGANISM_GENERATIONS),
-    np.linspace(0.5, 1.0, num=NUM_ORGANISM_GENERATIONS))
 
-
-def evolve_organisms(simulator, fitness_goal, clade):
-    fitness_scores = np.empty(
-        (NUM_SPECIES, NUM_TRIALS,
-         NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS),
-        dtype=np.uint32)
-    simulator.populate(clade.serialize())
-    for generation in range(NUM_ORGANISM_GENERATIONS):
-        simulator.simulate(fitness_goal)
-        fitness_scores[:, :, :, generation] = simulator.get_fitness_scores()
-        if generation + 1 < NUM_ORGANISM_GENERATIONS:
-            simulator.propagate()
-    return fitness_scores
-
-
-def compute_species_fitness(organism_fitness):
-    assert organism_fitness.shape == (
-        NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS,
-        NUM_ORGANISM_GENERATIONS)
-
-    result = (
-        # Consider just the median score across trials
-        np.median(
-            # Consider just the best-performing organism score for each trial
-            np.max(organism_fitness, axis=2),
-            axis=1,
-        # Weight the scores so earlier generations are worth less.
-        ) * WEIGHTS
-    # Sum up the weighted per-generation median score for each species.
-    ).sum(axis=1)
-    assert result.shape == (NUM_SPECIES,)
-    return result.astype(FitnessDType)
-
-
-def evolve_species(trial, clade, fitness_goal):
-    simulator = Simulator(NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
-    simulator.seed(trial)
-    species_fitness = np.empty(
-        (NUM_SPECIES, NUM_SPECIES_GENERATIONS), dtype=np.uint32)
-    progress_bar = tqdm.tqdm(
-        total=NUM_SPECIES_GENERATIONS,
-        mininterval=1,
-        bar_format='Gen {n_fmt} of {total_fmt} | {bar} | {elapsed}')
-
-    for generation in range(NUM_SPECIES_GENERATIONS):
-        organism_fitness = evolve_organisms(simulator, fitness_goal, clade)
-        assert organism_fitness.shape == (
-            NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS)
-
-        genotypes = simulator.get_genotypes()
-        assert genotypes.shape == (NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
-
-        this_gen_fitness = compute_species_fitness(organism_fitness)
-        species_fitness[:, generation] = this_gen_fitness
-
-        if generation + 1 < NUM_SPECIES_GENERATIONS:
-            clade.propagate(genotypes, this_gen_fitness)
-        progress_bar.update()
-
-    species_index = this_gen_fitness.argmax()
-    organism_index = organism_fitness[
-        species_index, trial, :, -1].argmax()
-    fitness = organism_fitness[
-        species_index, trial, organism_index]
-    genotype = genotypes[
-        species_index, trial, organism_index]
-    best_organism = OrganismData(fitness, genotype)
-
-    # Record the fitness history for each species, along with sample
-    # organisms from the last generation representing the best and median
-    # trials.
-    best_species_index = species_fitness[:, -1].argmax()
-    return SpeciesData(
-        species_fitness[best_species_index],
-        organism_fitness[best_species_index],
-        clade[best_species_index],
-        best_organism)
-
-
+# Sortable by fitness
 @functools.total_ordering
 class OrganismData:
+    """A summary of a single evolved organism.
+
+    Attributes
+    ----------
+    fitness_scores: FitnessDType
+        The fitness score for this organism
+    genotype: numpy array of GenotypeDType
+        The genotype of this organism, useful for reproducing the phenotype on
+        demand.
+    """
     def __init__(self, organism_fitness, genotype):
-        self.fitness_scores = organism_fitness
-        assert self.fitness_scores.shape == (NUM_ORGANISM_GENERATIONS,)
+        self.fitness = organism_fitness
         self.genotype = genotype
 
     def __eq__(self, other):
         if other is None:
             return False
-        return self.fitness_scores[-1] == other.fitness_scores[-1]
+        return self.fitness == other.fitness
 
     def __lt__(self, other):
         if other is None:
             return False
-        return self.fitness_scores[-1] < other.fitness_scores[-1]
+        return self.fitness < other.fitness
 
 
+# Sortable by fitness
 @functools.total_ordering
 class SpeciesData:
+    """A summary of an evolved species of organisms.
+
+    Attributes
+    ----------
+    fitness: FitnessDType
+        The fitness score for this species
+    phenotype_program: PhenotypeProgram
+        The PhenotypeProgram for this species, useful for reproducing the
+        phenotype of an organism of this species.
+    all_trial_organism_fitness: numpy array of FitnessDType
+        A record of the best fitness score from the full population of
+        organisms across all trials and generations, useful for visualizing
+        the "evolvability" of organisms of each species (which determines
+        species fitness, like phenotype does for an organism).
+    best_organism: OrganismData
+        A summary of the best organism found for this species.
+    """
     def __init__(self, species_fitness, organism_fitness,
                  phenotype_program, best_organism):
-        assert organism_fitness.shape == (
-            NUM_TRIALS, NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS)
-        assert species_fitness.shape == (NUM_SPECIES_GENERATIONS,)
-
-        self.fitness_scores = species_fitness
+        self.fitness = species_fitness
         self.phenotype_program = phenotype_program
 
+        # Rather than recording the fitness of all organisms across all trials
+        # and generations, keep just the best fitness score for all trials and
+        # generations. This shows how max fitness improves over time, a sign of
+        # "evolvability."
+        assert organism_fitness.shape == (
+            NUM_TRIALS, NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS)
         self.all_trial_organism_fitness = organism_fitness.max(axis=1)
         assert self.all_trial_organism_fitness.shape == (
             NUM_TRIALS, NUM_ORGANISM_GENERATIONS)
@@ -149,32 +105,86 @@ class SpeciesData:
     def __eq__(self, other):
         if other is None:
             return False
-        return self.fitness_scores[-1] == other.fitness_scores[-1]
+        return self.fitness == other.fitness
 
     def __lt__(self, other):
         if other is None:
             return False
-        return self.fitness_scores[-1] < other.fitness_scores[-1]
+        return self.fitness < other.fitness
 
 
 class ExperimentData:
-    def __init__(self, experiment_path):
-        self.results_path = experiment_path.joinpath('results.pickle')
-        if self.load_from_disk():
+    """A summary of the species evolved in an experiment with multiple trials.
+
+    Attributes
+    ----------
+    best_species_per_trial: list of SpeciesData
+        A summary of the best species from each trial.
+    all_trial_species_fitness: numpy array of FitnessDType
+        A record of the best fitness score from the full population of
+        species across all trials and generations, useful for visualizing
+        the "evolvability" of species in this experiment (and the effectiveness
+        of the epigenetic algorithm overall).
+    """
+    def __init__(self, results_path):
+        # Try to load partial results from the filesystem, or create an empty
+        # ExperimentData object.
+        self.results_path = results_path
+        if self.load_from_filesystem():
             return
         self.best_species_per_trial = []
         self.all_trial_species_fitness = np.zeros(
             (NUM_TRIALS, NUM_SPECIES_GENERATIONS), dtype=FitnessDType)
 
-    def log_trial(self, trial, species_data):
-        print('Log trial')
+    def log_trial(self, species_trial, clade):
+        """Record the results of one experiment trial to the filesystem.
+
+        This method processes the raw experiment data collected in clade to
+        capture just the data needed by the visualize_results script. Once the
+        data is processed, it gets written to the filesystem.
+        """
+        # For reference, document the shape of the arrays manipulated here.
+        assert clade.species_fitness_history.shape == (
+            NUM_SPECIES, NUM_SPECIES_GENERATIONS)
+        assert clade.organism_fitness_history.shape == (
+            NUM_SPECIES, NUM_TRIALS,
+            NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS)
+        assert clade.genotypes.shape == (
+            NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
+
+        # Find the species with the best fitness in the final generation, then
+        # find the fittest organism evolved for that species across all
+        # organism trials.
+        species_index = clade.species_fitness_history[:, -1].argmax()
+        organism_fitness_by_trial = clade.organism_fitness_history[
+            species_index, :, :, -1]
+        assert organism_fitness_by_trial.shape == (NUM_TRIALS, NUM_ORGANISMS)
+        organism_trial = organism_fitness_by_trial.max(axis=1).argmax()
+        organism_index = organism_fitness_by_trial[organism_trial].argmax()
+
+        # Record basic information about the best organism produced by the best
+        # species in this species trial.
+        organism_data = OrganismData(
+            clade.organism_fitness_history[
+                species_index, organism_trial, organism_index, -1],
+            clade.genotypes[species_index, organism_trial, organism_index])
+
+        # Record basic information about the best species in this species
+        # trial, including the best organism of that species.
+        species_data = SpeciesData(
+            clade.species_fitness_history[species_index, -1],
+            clade.organism_fitness_history[species_index, :, :, :],
+            clade.programs[species_index],
+            organism_data)
+
+        # Record best species data from each species trial on filesystem.
         self.best_species_per_trial.append(species_data)
         self.best_species_per_trial.sort()
-        self.all_trial_species_fitness[trial] = (
-            species_data.fitness_scores)
-        self.save_to_disk()
+        self.all_trial_species_fitness[species_trial] = species_data.fitness
+        self.save_to_filesystem()
 
-    def load_from_disk(self):
+    def load_from_filesystem(self):
+        """Attempt to load ExperimentData from the filesystem."""
         try:
             with open(self.results_path, 'rb') as file:
                 data = pickle.load(file)
@@ -184,22 +194,38 @@ class ExperimentData:
         except Exception:
             return False
 
-    def save_to_disk(self):
-        print('Saving results to disk')
+    def save_to_filesystem(self):
+        """Attempt to save ExperimentData to the filesystem."""
         data = (self.best_species_per_trial,
                 self.all_trial_species_fitness)
         with open(self.results_path, 'wb') as file:
             pickle.dump(data, file)
-        return True
 
 
+# Sortable by number of completed trials.
 @functools.total_ordering
 class Experiment:
+    """Handle for managing result data objects for an Experiment.
+
+    This is the primary interface between this module and the rest of the
+    project. Each experiment is associated with a directory path where
+    experiment state and results will be recorded. Each experiment takes a set
+    of Constraints that determine how species evolution will work, a
+    FitnessGoal that each species will adapt to, and a name string to identify
+    the experiment. If experiment state is found in the path directory, then
+    these experiment metadata will be restored from that state and the
+    arguments will be ignored. Otherwise, a new Experiment is created with
+    those metadata to be saved to the filesystem once the first trial is run.
+    """
     def __init__(self, path, name=None, fitness_goal=None,
                  constraints=None):
+        assert path.is_dir()
         self.path = path
+        self.results_path = path.joinpath('results.pickle')
         self.state_path = path.joinpath('state.pickle')
-        if self.load_from_disk():
+        # Either load metadata and state from the filesystem, or initialize
+        # them for a new Experiment.
+        if self.load_from_filesystem():
             return
         self.name = name
         self.fitness_goal = fitness_goal
@@ -210,48 +236,68 @@ class Experiment:
         self.experiment_data = None
 
     def has_started(self):
+        """Returns true iff at least one trial has been run."""
         return self.trial > -1
 
     def has_finished(self):
+        """Returns true iff all trials have completed."""
         return self.trial + 1 >= NUM_TRIALS
 
-    def get_data(self):
-        return ExperimentData(self.path)
+    def get_results(self):
+        """Load results from the filesystem."""
+        return ExperimentData(self.results_path)
 
     def run_trial(self):
+        """Run one trial, and save results to the filesystem."""
         self.trial += 1
+
         # Make sure we get the same pseudorandom numbers if we re-run the same
         # trial, but different numbers for different trials.
-        random.seed(self.trial)
+        seed = self.trial
+        random.seed(seed)
+
+        # Record how long it takes to run this trial in order to estimate how
+        # long it will take to run future trials.
         start = time.perf_counter()
-        clade = Clade(NUM_SPECIES, self.constraints)
-        # Load partial results from disk into memory, if they are available.
-        experiment_data = self.get_data()
-        experiment_data.log_trial(
-            self.trial, evolve_species(self.trial, clade, self.fitness_goal))
+
+        # Actually evolve species and capture data for this trial to the
+        # filesystem. Note this either starts a new ExperimentData object or
+        # appends to the one already present on the filesystem.
+        clade = Clade(constraints=self.constraints, seed=seed)
+        clade.evolve_species(self.fitness_goal)
+        experiment_data = self.get_results()
+        experiment_data.log_trial(self.trial, clade)
+
         # Only hold experiment results in memory for the duration of the trial.
         # This prevents the program's memory footprint from growing as it
         # processes long batch runs.
         del experiment_data
+        del clade
+
+        # Update experiment metadata and save it to the filesystem.
         self.elapsed += time.perf_counter() - start
         self.lifetimes += LIFETIMES_PER_TRIAL
-        self.save_to_disk()
+        self.save_to_filesystem()
 
     @property
     def klps(self):
+        """Experiment execution speed, in thousands of lifetimes per second."""
         return self.lifetimes / self.elapsed / 1000
 
     @property
     def average_trial_duration(self):
+        """Trial runtime in seconds, averaged across all trials run so far."""
         if self.trial == -1:
             return None
         return self.elapsed / (self.trial + 1)
 
     @property
     def remaining_trials(self):
+        """Number of trials left to run."""
         return NUM_TRIALS - self.trial - 1
 
-    def save_to_disk(self):
+    def save_to_filesystem(self):
+        """Attempt to save metadata and state to the filesystem."""
         data = (self.name,
                 self.fitness_goal,
                 self.constraints,
@@ -260,9 +306,9 @@ class Experiment:
                 self.lifetimes)
         with open(self.state_path, 'wb') as file:
             pickle.dump(data, file)
-        return True
 
-    def load_from_disk(self):
+    def load_from_filesystem(self):
+        """Attempt to load metadata and state from the filesystem."""
         try:
             with open(self.state_path, 'rb') as file:
                 data = pickle.load(file)
@@ -288,6 +334,23 @@ class Experiment:
 
 
 def build_experiment_list():
+    """Construct the list of all experiments to run for this project.
+
+    This project compares how many variations of the core algorithm performs on
+    a variety of FitnessGoals. Each experiment can take a long time to run
+    (nearly two hours on the original development machine), and the cross
+    product of all possible Constraints and FitnessGoals is quite large. For
+    that reason, it's helpful to sometimes run just a few of the full set of
+    experiments. This is easily done by commenting and uncommenting lines
+    below, to change up which subsets of the full list of experiments will be
+    considered by the run_experiments and visualize_results scripts. Since all
+    result data is saved to the filesystem keyed by experiment name, changing
+    the set of experiments to run won't clobber results already computed for
+    other experiments.
+
+    There's no need to call this function directly, just use the
+    experiment_list variable below.
+    """
     goals = [
         # FitnessGoal.EXPLODE,
         # FitnessGoal.GLIDERS,
@@ -329,4 +392,5 @@ def build_experiment_list():
     return experiment_list
 
 
+# The master list of all experiments to run for this project.
 experiment_list = build_experiment_list()

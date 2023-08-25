@@ -69,7 +69,7 @@ def summarize_species_data(species_data, species_path):
             species_data.phenotype_program.serialize(),
             best_organism.genotype),
         species_path.joinpath(
-            f'best_organism_f{best_organism.fitness_scores[-1]}.gif'))
+            f'best_organism_f{best_organism.fitness}.gif'))
 
 
 def recursive_delete_directory(path):
@@ -88,10 +88,11 @@ def summarize_experiment_data(experiment):
     for file in experiment.path.glob('*'):
         if file.is_dir():
             recursive_delete_directory(file)
+        # TODO: use path objects in experiment.
         elif file.name != 'state.pickle' and file.name != 'results.pickle':
             file.unlink()
 
-    experiment_data = experiment.get_data()
+    experiment_data = experiment.get_results()
 
     # Generate a chart summarizing species fitness across trials
     species_fitness_by_trial = pd.DataFrame(
@@ -117,7 +118,7 @@ def summarize_experiment_data(experiment):
         species_data = experiment_data.best_species_per_trial[trial]
         species_path = experiment.path.joinpath(
             f'best_species_from_trial_{trial:d}'
-            f'_f{species_data.fitness_scores[-1]}')
+            f'_f{species_data.fitness}')
         species_path.mkdir()
         summarize_species_data(species_data, species_path)
 
@@ -126,11 +127,13 @@ def summarize_experiment_data(experiment):
         video = simulate_organism(
             species_data.phenotype_program.serialize(),
             best_organism.genotype)
-        fitness = best_organism.fitness_scores[-1]
+        fitness = best_organism.fitness
         gif_files.save_image(
             video,
             experiment.path.joinpath(
                 f'best_organism_from_trial_{trial}_f{fitness}.gif'))
+        # TODO: compare organisms directly, or remove comparison support in the
+        # OrganismData class.
         if fitness > best_fitness:
             best_fitness = fitness
             best_video = video

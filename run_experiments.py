@@ -1,3 +1,11 @@
+"""Run experiments to evolve species for various fitness goals.
+
+This script runs evolutionary experiments specified in the experiments module.
+Each experiment is broken down into multiple trials, which are mostly just
+batches of work to run on the GPU. This script runs trial after trial until all
+experiments are complete. It uses a breadth-first approach and calls the
+summarize_results script in order to produce partial results quickly.
+"""
 import datetime
 import signal
 import subprocess
@@ -7,8 +15,8 @@ import experiments
 
 user_requested_abort = False
 
-
 def handle_sigint(sig, frame):
+    """Allow the user to abort this script, gracefully or abruptly."""
     global user_requested_abort
     if user_requested_abort:
         print('Caught Ctrl+C again, terminating immediately.')
@@ -19,6 +27,7 @@ def handle_sigint(sig, frame):
 
 
 def format_time(time_in_seconds):
+    """Summarize time_in_seconds as a concise text string."""
     result = str(datetime.timedelta(seconds=int(time_in_seconds)))
     if result.startswith('0:'):
         result = result[2:]
@@ -26,6 +35,7 @@ def format_time(time_in_seconds):
 
 
 def print_status_summary(completed_trials, elapsed_secs):
+    """Prints a summary of overall progress after each trial."""
     total_trials = len(experiments.experiment_list) * experiments.NUM_TRIALS
     percent_done = 100 * completed_trials // total_trials
     print(f'Completed {completed_trials} of '
@@ -35,6 +45,7 @@ def print_status_summary(completed_trials, elapsed_secs):
 
 
 def estimate_remaining_time():
+    """Use historical data to estimate overalltime remaining."""
     # If there's no historical runtime data, assume a trial will take 20
     # minutes to run, which was typical in the dev environment.
     trial_duration_estimate = 20 * 60
@@ -45,6 +56,8 @@ def estimate_remaining_time():
     for experiment in experiment_list:
         # If the current experiment has historical data, use that to estimate
         # how long it takes to run the remaining trials of this experiment.
+        # This is the most accurate, since different PhenotypePrograms and
+        # FitnessGoals have different performance characteristics.
         if experiment.average_trial_duration:
             # If some experiments haven't started yet but others have, then use
             # the true runtime from one experiment as an estimate for any
@@ -55,10 +68,12 @@ def estimate_remaining_time():
 
 
 def run_experiments():
-    # Handle Ctrl+C gracefully.
+    """Execute trial after trial until all experiments are complete."""
+    # Register a signal handler to deal with Ctrl+C gracefully.
     signal.signal(signal.SIGINT, handle_sigint)
 
-    # Review the experiment list and print a summary of the work to do.
+    # Review the experiment list, look for work has already been done (if any),
+    # and print a summary of the work left to do.
     total_experiments = 0
     completed_trials = 0
     elapsed_secs = 0
@@ -66,14 +81,16 @@ def run_experiments():
         total_experiments += 1
         completed_trials += experiment.trial + 1
         elapsed_secs += experiment.elapsed
-    print(f'Running {len(experiments.experiment_list)} experiments, '
+    print(f'Running {len(experiments.experiment_list)} experiments of '
           f'{experiments.NUM_TRIALS} trials each.')
     print_status_summary(completed_trials, elapsed_secs)
 
     # Keep running trials until they're all done (or the user aborts). Always
-    # pick the experiment with the fewest trials run next, so that no
+    # pick the experiment with the fewest trials to run next, so that no
     # experiment gets ahead of the others and partial results come in faster.
     while not user_requested_abort:
+        # If the experiment with the fewest completed trials is done, then all
+        # experiments must be done, so stop here.
         experiment = min(experiments.experiment_list)
         if experiment.has_finished():
             print('All experiments completed.')
@@ -87,10 +104,12 @@ def run_experiments():
         elapsed_secs += experiment.elapsed
         print_status_summary(completed_trials, elapsed_secs)
 
-        # Summarizing experiment data uses matplotlib which is prone to memory
-        # leaks and isn't good for a long-running process like this one, so
-        # spawn a separate process and don't wait for it to finish (note, the
-        # Python GIL means these may not actually run simultaneously).
+        # Summarize the results from this trial in a human-friendly form. This
+        # is done by launching a separate script in a separate process. The
+        # main reason for this is because matplotlib is prone to memory leaks
+        # and isn't good for use in a long-running process like this one. In
+        # theory, it also allows both scripts to run in parallel to save time
+        # (though the Python GIL means this is not guaranteed).
         subprocess.Popen(['python3', 'summarize_results.py'])
 
 

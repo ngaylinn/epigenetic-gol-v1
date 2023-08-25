@@ -7,7 +7,6 @@ import numpy as np
 from scipy import stats
 
 from kernel import (
-    select,
     BiasMode, ComposeMode, PhenotypeProgramDType, TransformMode,
     MAX_ARGUMENTS, MAX_OPERATIONS, NUM_GENES)
 
@@ -425,60 +424,4 @@ class PhenotypeProgram:
         draws = '\n'.join(map(str, self.draw_ops))
         return f'<\n{draws}\n>'
 
-
-class Clade:
-    def __init__(self, size, constraints=Constraints()):
-        self.size = size
-        self.constraints = constraints
-        self.innovation_counter = itertools.count()
-        self.populate()
-
-    def __iter__(self):
-        return iter(self.programs)
-
-    def __getitem__(self, key):
-        return self.programs[key]
-
-    def populate(self):
-        minimal_program = PhenotypeProgram()
-        minimal_program.add_draw(self.innovation_counter)
-        self.programs = [minimal_program]
-        self.programs.extend(
-            [deepcopy(minimal_program) for _ in range(1, self.size)])
-        for program in self.programs:
-            program.randomize(self.innovation_counter, self.constraints)
-
-    def propagate(self, all_genotypes, fitness_scores):
-        parent_selections = select(fitness_scores, random.getrandbits(32))
-        mate_selections = select(fitness_scores, random.getrandbits(32))
-        self.programs = [
-            self.programs[parent_index].make_offspring(
-                self.programs[mate_index],
-                self.innovation_counter,
-                # Combine genotypes from all trials and organisms.
-                this_species_genotypes.flatten(),
-                self.constraints)
-            for this_species_genotypes, parent_index, mate_index in
-            zip(all_genotypes, parent_selections, mate_selections)
-        ]
-        return parent_selections, mate_selections
-
-    def serialize(self):
-        result = np.zeros(self.size, dtype=PhenotypeProgramDType)
-        for index, program in enumerate(self.programs):
-            program.serialize(result[index])
-        return result
-
-
-class TestClade(Clade):
-    def populate(self):
-        test_program = PhenotypeProgram()
-        draw_op = test_program.add_draw(self.innovation_counter)
-        transform = draw_op.add_global_transform(self.innovation_counter)
-        transform.type = TransformMode.TRANSLATE
-        transform.args[0].bias_mode = BiasMode.FIXED_VALUE
-        transform.args[0].bias = 28
-        transform.args[1].bias_mode = BiasMode.FIXED_VALUE
-        transform.args[1].bias = 28
-        self.programs = [deepcopy(test_program) for _ in range(self.size)]
 
