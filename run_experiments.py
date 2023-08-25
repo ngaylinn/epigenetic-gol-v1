@@ -4,7 +4,7 @@ This script runs evolutionary experiments specified in the experiments module.
 Each experiment is broken down into multiple trials, which are mostly just
 batches of work to run on the GPU. This script runs trial after trial until all
 experiments are complete. It uses a breadth-first approach and calls the
-summarize_results script in order to produce partial results quickly.
+visualize_results script in order to produce partial results quickly.
 """
 import datetime
 import signal
@@ -110,7 +110,7 @@ def run_experiments():
         # and isn't good for use in a long-running process like this one. In
         # theory, it also allows both scripts to run in parallel to save time
         # (though the Python GIL means this is not guaranteed).
-        subprocess.Popen(['python3', 'summarize_results.py'])
+        subprocess.Popen(['python3', 'visualize_results.py'])
 
 
 if __name__ == '__main__':

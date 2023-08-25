@@ -34,8 +34,6 @@ LIFETIMES_PER_TRIAL = (
     NUM_SPECIES_GENERATIONS * NUM_ORGANISM_GENERATIONS * POPULATION_SIZE)
 
 
-# Sortable by fitness
-@functools.total_ordering
 class OrganismData:
     """A summary of a single evolved organism.
 
@@ -50,16 +48,6 @@ class OrganismData:
     def __init__(self, organism_fitness, genotype):
         self.fitness = organism_fitness
         self.genotype = genotype
-
-    def __eq__(self, other):
-        if other is None:
-            return False
-        return self.fitness == other.fitness
-
-    def __lt__(self, other):
-        if other is None:
-            return False
-        return self.fitness < other.fitness
 
 
 # Sortable by fitness
@@ -236,11 +224,11 @@ class Experiment:
         self.experiment_data = None
 
     def has_started(self):
-        """Returns true iff at least one trial has been run."""
+        """Returns True iff at least one trial has been run."""
         return self.trial > -1
 
     def has_finished(self):
-        """Returns true iff all trials have completed."""
+        """Returns True iff all trials have completed."""
         return self.trial + 1 >= NUM_TRIALS
 
     def get_results(self):
