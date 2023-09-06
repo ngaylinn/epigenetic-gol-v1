@@ -23,8 +23,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-import kernel
-import phenotype_program
+from kernel import Simulator, FitnessGoal
+from evolution import TestClade
 
 # Hyperparameters for evolution. These are set to match the formal experiments
 # for now, but this is arbitrary since the main purpose of this script is to
@@ -43,25 +43,25 @@ NUM_SAMPLES = 3
 HISTORY_SIZE = 5
 
 # For testing, just make NUM_SPECIES copies of the same PhenotypeProgram.
-CLADE = phenotype_program.TestClade(NUM_SPECIES)
+CLADE = TestClade(NUM_SPECIES)
 
 
 def sample_performance():
     """Measure the performance of running this project's inner loop once."""
     # Don't count the one-time initialization in our measurement.
     random.seed(42)
-    simulator = kernel.Simulator(NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
-    goal = kernel.FitnessGoal.STILL_LIFE
+    simulator = Simulator(NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
+    goal = FitnessGoal.STILL_LIFE
 
     start = time.perf_counter()
     # TODO: Should this just call evolve()? Or should we keep it like this to
     # include the cost of get_fitness_scores() in the benchmark?
-    simulator.populate(CLADE.serialize())
+    CLADE.populate_simulator()
     for _ in range(NUM_GENERATIONS - 1):
-        simulator.simulate(goal)
-        simulator.get_fitness_scores()
-        simulator.propagate()
-    simulator.simulate(goal)
+        CLADE.simulator.simulate(goal)
+        CLADE.simulator.get_fitness_scores()
+        CLADE.simulator.propagate()
+    CLADE.simulator.simulate(goal)
     fitness = simulator.get_fitness_scores()
     elapsed = time.perf_counter() - start
     return fitness, elapsed
