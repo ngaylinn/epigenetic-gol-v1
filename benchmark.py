@@ -16,7 +16,6 @@ import argparse
 from datetime import datetime
 import pathlib
 import time
-import random
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -43,13 +42,12 @@ NUM_SAMPLES = 3
 HISTORY_SIZE = 5
 
 # For testing, just make NUM_SPECIES copies of the same PhenotypeProgram.
-CLADE = TestClade(NUM_SPECIES)
+CLADE = TestClade(NUM_SPECIES, 42)
 
 
 def sample_performance():
     """Measure the performance of running this project's inner loop once."""
     # Don't count the one-time initialization in our measurement.
-    random.seed(42)
     simulator = Simulator(NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
     goal = FitnessGoal.STILL_LIFE
 

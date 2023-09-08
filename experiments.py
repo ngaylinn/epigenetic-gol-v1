@@ -239,11 +239,6 @@ class Experiment:
         """Run one trial, and save results to the filesystem."""
         self.trial += 1
 
-        # Make sure we get the same pseudorandom numbers if we re-run the same
-        # trial, but different numbers for different trials.
-        seed = self.trial
-        random.seed(seed)
-
         # Record how long it takes to run this trial in order to estimate how
         # long it will take to run future trials.
         start = time.perf_counter()
@@ -251,7 +246,9 @@ class Experiment:
         # Actually evolve species and capture data for this trial to the
         # filesystem. Note this either starts a new ExperimentData object or
         # appends to the one already present on the filesystem.
-        clade = Clade(constraints=self.constraints, seed=seed)
+        # Seed the RNG with the trial number, so each trial will have a
+        # different but repeatable pseudorandom sequence.
+        clade = Clade(constraints=self.constraints, seed=self.trial)
         clade.evolve_species(self.fitness_goal)
         experiment_data = self.get_results()
         experiment_data.log_trial(self.trial, clade)

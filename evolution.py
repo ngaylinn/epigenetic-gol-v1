@@ -90,6 +90,7 @@ class Clade:
     def __init__(self, constraints=Constraints(), seed=None):
         self.simulator = Simulator(NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
         if seed is not None:
+            random.seed(seed)
             self.simulator.seed(seed)
         self.constraints = constraints
         # This project uses "innovation numbers" as a technique for aligning
@@ -105,20 +106,33 @@ class Clade:
         self.species_fitness_history = np.empty(
             (NUM_SPECIES, NUM_SPECIES_GENERATIONS), dtype=np.uint32)
 
-    def evolve_organisms(self, fitness_goal):
+    def evolve_organisms(self, fitness_goal, record=False):
         """Evolve a population of organisms of all species."""
+        # Simulations captured from the last generation (if record is True)
+        simulations = None
         # Set up the simulator with the latest generation of evolved species
         # and a randomly generated population of organisms for each.
         self.populate_simulator()
         # Evolve organisms on the GPU, capturing data from each generation.
         for generation in range(NUM_ORGANISM_GENERATIONS):
-            self.simulator.simulate(fitness_goal)
+            last_generation = generation + 1 == NUM_ORGANISM_GENERATIONS
+            # Record the last generation, only if requested.
+            if record and last_generation:
+                simulations = self.simulator.simulate_and_record(fitness_goal)
+            else:
+                self.simulator.simulate(fitness_goal)
             fitness_scores = self.simulator.get_fitness_scores()
             assert fitness_scores.shape == (
                 NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
             self.organism_fitness_history[:, :, :, generation] = fitness_scores
-            if generation + 1 < NUM_ORGANISM_GENERATIONS:
+            if last_generation:
+                # Keep track of organism genotypes from the last generation.
+                self.genotypes = self.simulator.get_genotypes()
+                assert self.genotypes.shape == (
+                    NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
+            else:
                 self.simulator.propagate()
+        return simulations
 
     def evolve_species(self, fitness_goal):
         """Evolve a population of species."""
@@ -138,11 +152,6 @@ class Clade:
             this_gen_fitness = compute_species_fitness(
                 self.organism_fitness_history)
             self.species_fitness_history[:, generation] = this_gen_fitness
-
-            # Keep track of organism genotypes from the last generation.
-            self.genotypes = self.simulator.get_genotypes()
-            assert self.genotypes.shape == (
-                NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
 
             # Breed new species, unless this is the last generation.
             if generation + 1 < NUM_SPECIES_GENERATIONS:

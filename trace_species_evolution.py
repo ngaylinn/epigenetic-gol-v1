@@ -2,48 +2,28 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
-import random
-import tqdm
 
-from experiments import (
-    NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS,
-    NUM_SPECIES_GENERATIONS, NUM_ORGANISM_GENERATIONS)
+from evolution import Clade, compute_species_fitness
+from experiments import NUM_SPECIES, NUM_TRIALS
 import gif_files
-from kernel import Cell, FitnessGoal, Simulator, WORLD_SIZE
-from phenotype_program import Clade, Constraints, CROSSOVER_RATE
+from kernel import Cell, FitnessGoal, WORLD_SIZE
+from phenotype_program import Constraints, CROSSOVER_RATE
 
-
-def evolve_organisms(simulator, fitness_goal, clade):
-    fitness_scores = np.empty(
-        (NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS),
-        dtype=np.uint32)
-    simulator.populate(clade.serialize())
-    videos = None
-    for generation in range(NUM_ORGANISM_GENERATIONS):
-        if generation + 1 < NUM_ORGANISM_GENERATIONS:
-            simulator.simulate(fitness_goal)
-            simulator.propagate()
-        else:
-            videos = simulator.simulate_and_record(fitness_goal)
-        fitness_scores[:, :, :, generation] = simulator.get_fitness_scores()
-    return fitness_scores, videos
+# This script only looks at the first few generations of species.
+NUM_SPECIES_GENERATIONS = 3
 
 
 def main():
-    random.seed(42)
-    goal = FitnessGoal.GLIDERS
+    goal = FitnessGoal.LEFT_TO_RIGHT
     constraints = Constraints(
         allow_bias=True,
         allow_stamp_transforms=True,
         allow_composition=False)
-    clade = Clade(NUM_SPECIES, constraints)
-    simulator = Simulator(NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
+    clade = Clade(constraints, seed=42)
+    clade.randomize_species()
     selections = None
-    progress_bar = tqdm.tqdm(
-        total=NUM_SPECIES_GENERATIONS,
-        mininterval=1,
-        bar_format='Gen {n_fmt} of {total_fmt} | {bar} | {elapsed}')
     for generation in range(NUM_SPECIES_GENERATIONS):
+        print(f'Running generation {generation}...')
         path = f'output/trace/gen{generation:03d}'
         os.makedirs(path, exist_ok=True)
 
@@ -53,17 +33,19 @@ def main():
 
         # Save a summary of all of the Clade's PhenotypePrograms
         with open(f'{path}/phenotype_programs.txt', mode='w') as file:
-            for species_index, species in enumerate(clade):
-                file.write(f'{species_index}: {species}\n')
+            for species_index, program in enumerate(clade.programs):
+                file.write(f'{species_index}: {program}\n')
 
         # Evolve some organisms
-        organism_fitness, videos = evolve_organisms(simulator, goal, clade)
-        genotypes = simulator.get_genotypes()
-        species_fitness = experiments.compute_species_fitness(organism_fitness)
+        print('Evolving organisms...')
+        simulations = clade.evolve_organisms(goal, record=True)
+        organism_fitness = clade.organism_fitness_history
+        species_fitness = compute_species_fitness(organism_fitness)
 
         # Breed the next generation and record selections.
+        print('Performing propagation')
         if generation + 1 < NUM_SPECIES_GENERATIONS:
-            parents, mates = clade.propagate(genotypes, species_fitness)
+            parents, mates = clade.propagate_species(species_fitness)
             parent_counts = dict(zip(*np.unique(parents, return_counts=True)))
             mate_counts = dict(zip(*np.unique(mates, return_counts=True)))
             num_children = [
@@ -72,15 +54,18 @@ def main():
                 for index in range(NUM_SPECIES)
             ]
             selections = np.array(list(zip(parents, mates)))
+        else:
+            num_children = [0] * NUM_SPECIES
 
         # Generate a population chart
+        print('Visualizing results...')
         fig = plt.figure(
             f'Generation {generation} Species Summary',
             figsize=(20, 10))
         best_fitness = -1
-        best_video = None
-        for species_index, species in enumerate(clade):
-            # Find the video for the best organism of the median trial
+        best_simulation = None
+        for species_index, program in enumerate(clade.programs):
+            # Find the simulation for the best organism of the median trial
             # Sort trial indices...
             trial_index = np.argsort(
                 # By the total fitness of all organisms in the last generation
@@ -91,12 +76,13 @@ def main():
                 organism_fitness[species_index, trial_index, :, -1])
             fitness = organism_fitness[
                 species_index, trial_index, organism_index, -1]
-            video = videos[species_index][trial_index][organism_index]
+            simulation = (
+                simulations[species_index][trial_index][organism_index])
             gif_files.save_simulation_data_as_image(
-                video, f'{path}/best_for_species{species_index:02d}.gif')
+                simulation, f'{path}/best_for_species{species_index:02d}.gif')
             if fitness > best_fitness:
                 best_fitness = fitness
-                best_video = video
+                best_simulation = simulation
 
             axis = fig.add_subplot(5, 10, species_index + 1)
             axis.set_title(species_index)
@@ -106,7 +92,7 @@ def main():
                 f'{species_fitness[species_index]}, {fitness}')
             axis.tick_params(bottom=False, left=False,
                              labelbottom=False, labelleft=False)
-            gif_files.add_simulation_data_to_figure(video[0], fig, axis)
+            gif_files.add_simulation_data_to_figure(simulation[0], fig, axis)
 
             if num_children[species_index] > 0:
                 plt.setp(axis.spines.values(), color='#ff0000')
@@ -117,10 +103,7 @@ def main():
         plt.clf()
 
         gif_files.save_simulation_data_as_image(
-            best_video, f'{path}/best_organism.gif')
-
-        progress_bar.update()
-    progress_bar.close()
+            best_simulation, f'{path}/best_organism.gif')
 
 
 def glider_fitness(video):
