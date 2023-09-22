@@ -139,13 +139,13 @@ void simulate_population(
                 grid, THREADS_PER_BLOCK
             >>>(programs, genotypes, fitness_scores, videos);
             break;
-        case FitnessGoal::GLIDERS:
-            GolKernel<FitnessGoal::GLIDERS, RECORD><<<
+        case FitnessGoal::LEFT_TO_RIGHT:
+            GolKernel<FitnessGoal::LEFT_TO_RIGHT, RECORD><<<
                 grid, THREADS_PER_BLOCK
             >>>(programs, genotypes, fitness_scores, videos);
             break;
-        case FitnessGoal::LEFT_TO_RIGHT:
-            GolKernel<FitnessGoal::LEFT_TO_RIGHT, RECORD><<<
+        case FitnessGoal::RING:
+            GolKernel<FitnessGoal::RING, RECORD><<<
                 grid, THREADS_PER_BLOCK
             >>>(programs, genotypes, fitness_scores, videos);
             break;

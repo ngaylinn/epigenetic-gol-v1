@@ -27,6 +27,8 @@ TODO: Ideas for additional fitness goals:
   We can directly measure the complexity of a PhenotypeProgram, and could
   estimate the information content of a GOL program by trying to compress the
   last frame of the video, perhaps using the nvCOMP library.
+
+TODO: What if you applied different goals to different regions of the board?
 */
 
 // ---------------------------------------------------------------------------
@@ -43,9 +45,10 @@ __device__ void FitnessObserver<GOAL>::observe(
         // can optimize away the switch statement and directly call the correct
         // method for each goal.
         switch(GOAL) {
-            case FitnessGoal::STILL_LIFE:
             case FitnessGoal::EXPLODE:
             case FitnessGoal::LEFT_TO_RIGHT:
+            case FitnessGoal::RING:
+            case FitnessGoal::STILL_LIFE:
             case FitnessGoal::THREE_CYCLE:
             case FitnessGoal::TWO_CYCLE:
                 // Observe this cell and store incremental fitness data in
@@ -54,7 +57,6 @@ __device__ void FitnessObserver<GOAL>::observe(
                 update(step, row, col+i, local[i], scratch_a[i], scratch_b[i]);
                 break;
 
-            case FitnessGoal::GLIDERS:
             case FitnessGoal::SYMMETRY:
                 // Observe this cell and store incremental fitness data in
                 // scratch_a[i] and scratch_b[i]. The meaning of these two values
@@ -71,7 +73,7 @@ __device__ void FitnessObserver<GOAL>::observe(
 template<FitnessGoal GOAL>
 __device__ void FitnessObserver<GOAL>::reduce(Fitness* result) {
     // Add up the values of scratch_a and scratch_b across all threads
-    // (ie, the full GOL board). 
+    // (ie, the full GOL board).
     auto reduce = cub::BlockReduce<uint32_t, THREADS_PER_BLOCK>();
     uint32_t sum_a = reduce.Sum(scratch_a);
     // Needed because both calls to Sum share the same workspace memory.
@@ -106,78 +108,21 @@ __device__ void FitnessObserver<GOAL>::update(
 template<>
 __device__ void FitnessObserver<FitnessGoal::EXPLODE>::update(
         const int& step, const int& row, const int& col, const Cell& cell,
-        uint32_t& alive_on_first, uint32_t& alive_on_last) {
+        uint32_t& alive_at_start, uint32_t& alive_at_end) {
     if (step > 0 && step < NUM_STEPS - 1) return;
 
     if (step == 0) {
-        alive_on_first = (cell == Cell::ALIVE);
+        alive_at_start = (cell == Cell::ALIVE);
     } else { // step == NUM_STEPS - 1
-        // TODO: Looking at JUST the last step encourages "vertical line"
-        // patterns that are chaotic and just happen to clear the world in the
-        // last frame, which isn't really what we want. Maybe just averaging
-        // the last few frames would be better?
-        alive_on_last = (cell == Cell::ALIVE);
+        alive_at_end += (cell == Cell::ALIVE);
     }
 }
 
 template<>
 __device__ void FitnessObserver<FitnessGoal::EXPLODE>::finalize(
-        const uint32_t& alive_on_first, const uint32_t& alive_on_last,
+        const uint32_t& alive_at_start, const uint32_t& alive_at_end,
         Fitness* result) {
-    *result = (100 * alive_on_last) / (1 + alive_on_first);
-}
-
-
-// ---------------------------------------------------------------------------
-// Gliders
-// ---------------------------------------------------------------------------
-
-template<>
-__device__ void FitnessObserver<FitnessGoal::GLIDERS>::update(
-        const int& step, const int& row, const int& col,
-        const Frame& frame, uint32_t& history, uint32_t& in_spaceship) {
-    // This function can be used to look for any spaceship. It's configured to
-    // recognize gliders (that move one space diagonally every four steps).
-    constexpr int row_delta = 1;
-    constexpr int col_delta = 1;
-    constexpr int time_delta = 4;
-    // For looking up what value this cell had time_delta steps ago.
-    constexpr int last_cycle_mask = 0b1 << time_delta;    // == 0b10000
-    // For looking up what values this cell had in the past time_delta steps.
-    constexpr int full_period_mask = last_cycle_mask - 1; // == 0b01111
-
-    if (step < NUM_STEPS - time_delta - 1) return;
-
-    const Cell& cell = frame[row][col];
-
-    history = history << 1 | (cell == Cell::ALIVE);
-    if (step < NUM_STEPS - 1) return;
-
-    const bool last_cycle = history & last_cycle_mask;
-    const bool this_cycle =
-        (row + row_delta < WORLD_SIZE) &&
-        (col + col_delta < WORLD_SIZE) &&
-        (frame[row + row_delta][col + col_delta] == Cell::ALIVE);
-    const bool always_alive = (history & full_period_mask) == full_period_mask;
-    // If this cell is alive and so was the matching cell from last cycle but
-    // did not just hold the same value the whole time, then this cell might be
-    // part of a spaceship with the parameters set above.
-    // TODO: Wait, this is unused? Something must be broken here.
-    in_spaceship = last_cycle && this_cycle && !always_alive;
-
-    // If this cell was alive at some point in the last time_delta steps but
-    // did not contribute to a repeating pattern, then this is garbage not
-    // participating in a spaceship.
-    history = (!last_cycle || !this_cycle) && (history & full_period_mask);
-}
-
-template<>
-__device__ void FitnessObserver<FitnessGoal::GLIDERS>::finalize(
-        const uint32_t& not_in_spaceship, const uint32_t& in_spaceship,
-        Fitness* result) {
-    // TODO: This goal only ever seems to produce single gliders. What can we
-    // do to increase the value of multiple gliders?
-    *result = (100 * in_spaceship) / (1 + not_in_spaceship);
+    *result = (100 * alive_at_end) / (1 + alive_at_start);
 }
 
 
@@ -188,49 +133,31 @@ __device__ void FitnessObserver<FitnessGoal::GLIDERS>::finalize(
 template<>
 __device__ void FitnessObserver<FitnessGoal::LEFT_TO_RIGHT>::update(
         const int& step, const int& row, const int& col, const Cell& cell,
-        uint32_t& on_target_count, uint32_t& off_target_count) {
+        uint32_t& on_target_first_frame, uint32_t& on_target_last_frame) {
+    if (step > 0 && step < NUM_STEPS - 1) return;
+
     const bool alive = (cell == Cell::ALIVE);
 
-    // TODO: Commit to one implementation of this goal!
-
-    //if (step == 0) {
-    //    off_target_count = alive && col >= WORLD_SIZE / 2;
-    //} else if (step == NUM_STEPS - 1) {
-    //    on_target_count += alive && col >= WORLD_SIZE / 2;
-    //    off_target_count += alive && col < WORLD_SIZE / 2;
-    //}
-    //return;
-
-    // This version is equivalent to the prototype version of this goal.
+    // On the first step, a cell is "on target" if it is ALIVE on the left or
+    // DEAD on the right. The opposite is true for the last step.
     if (step == 0) {
-        on_target_count = alive && col < WORLD_SIZE / 2;
-        off_target_count = alive && col >= WORLD_SIZE / 2;
+        on_target_first_frame = alive == (col < WORLD_SIZE / 2);
     } else if (step == NUM_STEPS - 1) {
-        on_target_count += alive && col >= WORLD_SIZE / 2;
-        off_target_count += alive && col < WORLD_SIZE / 2;
+        on_target_last_frame = alive == (col >= WORLD_SIZE / 2);
     }
-    return;
-
-    //constexpr uint32_t window = WORLD_SIZE / 2;
-    //const int target =
-    //    window + (step * (WORLD_SIZE - window - 1)) / (NUM_STEPS - 1);
-    //const bool on_target = target >= col && target - col <= window;
-    //on_target_count += alive && on_target;
-    //off_target_count += alive && !on_target;
-
-    // constexpr uint32_t window = WORLD_SIZE / 4;
-    // const int target =
-    //     window + (step * (WORLD_SIZE / 2 - 1)) / (NUM_STEPS - 1);
-    // const bool close_enough = abs(target - col) < window;
-    // on_target_count += alive && close_enough;
-    // off_target_count += alive && !close_enough;
 }
 
 template<>
 __device__ void FitnessObserver<FitnessGoal::LEFT_TO_RIGHT>::finalize(
-        const uint32_t& on_target_count, const uint32_t& off_target_count,
+        const uint32_t& on_target_first_frame,
+        const uint32_t& on_target_last_frame,
         Fitness* result) {
-    *result = (100 * on_target_count) / (1 + off_target_count);
+    // Look for simulations with high on-target values for the first and last
+    // steps. Weight the last step higher than the first, since it's much
+    // easier to craft a good starting phenotype than to have the simulation
+    // ultimately produce a good last step.
+    *result = on_target_first_frame + 2 * on_target_last_frame;
+    //*result = (100 * on_target_count) / (1 + off_target_count);
 }
 
 
@@ -291,34 +218,63 @@ __device__ void FitnessObserver<FitnessGoal::SYMMETRY>::finalize(
 // ThreeCycle
 // ---------------------------------------------------------------------------
 
+namespace {
+template<int CYCLE_LENGTH>
+__device__ void update_cycle(
+        const int& step, const int& row, const int& col, const Cell& cell,
+        uint32_t& history, uint32_t& cycling) {
+    // How many times must the cycle repeat in order to count it?
+    constexpr int NUM_ITERATIONS = 4;
+    // A bitmask to capture the last CYCLE_LENGTH bits.
+    constexpr int MASK = (2 << (CYCLE_LENGTH - 1)) - 1;
+
+    // Only consider the last few steps of the simulation, just enough to
+    // capture the desired number of cycles.
+    if (step < NUM_STEPS - CYCLE_LENGTH * NUM_ITERATIONS) return;
+
+    // Record a history of this cell's state, one bit per simulation step.
+    history = history << 1 | (cell == Cell::ALIVE);
+
+    // On the last iteration, test if this cell was oscillating the whole time.
+    if (step < NUM_STEPS - 1) return;
+
+    // Capture the pattern found in the last N steps of the simulation and
+    // figure out if this cell stayed on, off, or changed in that time.
+    const int last_cycle = history & MASK;
+    cycling = 1;
+    bool not_cycling = false;
+    for (int i = 0; i < NUM_ITERATIONS; i++) {
+        // Grab the last N states from this cycle from the history variable,
+        // then bitshift to set up the next N for the next loop iteration.
+        const int this_cycle = history & MASK;
+        history >>= CYCLE_LENGTH;
+
+        const bool always_off = (this_cycle == 0);
+        const bool always_on = (this_cycle == MASK);
+        const bool repeating = (this_cycle == last_cycle);
+        // True iff this cell is in a repeating, non-static pattern.
+        cycling &= !always_off && !always_on && repeating;
+        // True for any cell that was on at some point but was not repeating.
+        not_cycling |= !(always_off || repeating);
+    }
+    // Reuse the history variable to track not_cycling.
+    history = not_cycling;
+}
+} // namespace
+
 template<>
 __device__ void FitnessObserver<FitnessGoal::THREE_CYCLE>::update(
         const int& step, const int& row, const int& col, const Cell& cell,
         uint32_t& history, uint32_t& cycling) {
-    if (step < NUM_STEPS - 6) return;
-
-    history = history << 1 | (cell == Cell::ALIVE);
-
-    // On the last iteration, do some post-processing on the data to simplify
-    // the reduction step later.
-    if (step == NUM_STEPS - 1) {
-        constexpr int mask = 0b111;
-        const int pattern = history & mask;
-        const bool repeat = (history >> 3 & mask) == pattern;
-        // If the last three steps were the same as the three steps before that
-        // AND the pattern wasn't just static, then this cell is cycling.
-        cycling = repeat && pattern != 0b000 && pattern != 0b111;
-        // Overwrite history with a count of cells that aren't cycling. That
-        // is, any cell that is not repeating and was alive in at least one of
-        // the last three steps.
-        history = !repeat && pattern != 0b000;
-    }
+    update_cycle<3>(step, row, col, cell, history, cycling);
 }
 
 template<>
 __device__ void FitnessObserver<FitnessGoal::THREE_CYCLE>::finalize(
         const uint32_t& not_cycling, const uint32_t& cycling, Fitness* result) {
-    *result = (100 * cycling) / (1 + not_cycling);
+    // Prefer simulations with more cells cycling, and with relatively little
+    // "debris" that's not participating.
+    *result = (cycling * cycling) / (1 + not_cycling);
 }
 
 
@@ -330,38 +286,56 @@ template<>
 __device__ void FitnessObserver<FitnessGoal::TWO_CYCLE>::update(
         const int& step, const int& row, const int& col, const Cell& cell,
         uint32_t& history, uint32_t& cycling) {
-    if (step < NUM_STEPS - 4) return;
-
-    const bool alive = (cell == Cell::ALIVE);
-    history = history << 1 | alive;
-
-    // On the last iteration, do some post-processing on the data to simplify
-    // the reduction step later.
-    if (step == NUM_STEPS - 1) {
-        constexpr int mask = 0b11;
-        const int pattern = history & mask;
-        const bool repeat = (history >> 2 & mask) == pattern;
-        // If the last two steps were the same as the two steps before that AND
-        // the pattern wasn't just static, then this cell is cycling.
-        cycling = repeat && pattern != 0b00 && pattern != 0b11;
-        // Overwrite history with a count of cells that aren't cycling. That
-        // is, any cell that is not repeating and was alive in at least one of
-        // the last two steps.
-        history = !repeat && pattern != 0b00;
-    }
+    update_cycle<2>(step, row, col, cell, history, cycling);
 }
 
 template<>
 __device__ void FitnessObserver<FitnessGoal::TWO_CYCLE>::finalize(
         const uint32_t& not_cycling, const uint32_t& cycling, Fitness* result) {
-    *result = (100 * cycling) / (1 + not_cycling);
+    // Prefer simulations with more cells cycling, and with relatively little
+    // "debris" that's not participating.
+    *result = (cycling * cycling) / (1 + not_cycling);
 }
 
 
+// ---------------------------------------------------------------------------
+// Ring
+// ---------------------------------------------------------------------------
+
+template<>
+__device__ void FitnessObserver<FitnessGoal::RING>::update(
+        const int& step, const int& row, const int& col, const Cell& cell,
+        uint32_t& on_target, uint32_t& off_target) {
+    if (step < NUM_STEPS - 1) return;
+
+    constexpr int CENTER = WORLD_SIZE / 2;
+    constexpr int INNER_RADIUS = CENTER / 4;
+    constexpr int OUTER_RADIUS = 3 * CENTER / 4;
+
+    int distance_squared = (
+        (CENTER - row) * (CENTER - row) +
+        (CENTER - col) * (CENTER - col));
+    bool within_target = (
+        (distance_squared > INNER_RADIUS * INNER_RADIUS) &&
+        (distance_squared <= OUTER_RADIUS * OUTER_RADIUS));
+
+    on_target = within_target == (cell == Cell::ALIVE);
+    off_target = !on_target;
+}
+
+template<>
+__device__ void FitnessObserver<FitnessGoal::RING>::finalize(
+        const uint32_t& on_target, const uint32_t& off_target, Fitness* result) {
+    *result = (100 * on_target) / (1 + off_target);
+}
+
+
+// ---------------------------------------------------------------------------
+
 // Make sure we actually instantiate a version of the class for every goal.
 template class FitnessObserver<FitnessGoal::EXPLODE>;
-template class FitnessObserver<FitnessGoal::GLIDERS>;
 template class FitnessObserver<FitnessGoal::LEFT_TO_RIGHT>;
+template class FitnessObserver<FitnessGoal::RING>;
 template class FitnessObserver<FitnessGoal::STILL_LIFE>;
 template class FitnessObserver<FitnessGoal::SYMMETRY>;
 template class FitnessObserver<FitnessGoal::THREE_CYCLE>;

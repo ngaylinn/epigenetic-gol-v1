@@ -30,8 +30,8 @@ namespace py = pybind11;
 void bind_environment(py::module_& m) {
     py::enum_<FitnessGoal>(m, "FitnessGoal")
         .value("EXPLODE", FitnessGoal::EXPLODE)
-        .value("GLIDERS", FitnessGoal::GLIDERS)
         .value("LEFT_TO_RIGHT", FitnessGoal::LEFT_TO_RIGHT)
+        .value("RING", FitnessGoal::RING)
         .value("STILL_LIFE", FitnessGoal::STILL_LIFE)
         .value("SYMMETRY", FitnessGoal::SYMMETRY)
         .value("THREE_CYCLE", FitnessGoal::THREE_CYCLE)
