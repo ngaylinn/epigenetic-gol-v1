@@ -337,24 +337,24 @@ def build_experiment_list():
     experiment_list variable below.
     """
     goals = [
-        # FitnessGoal.EXPLODE,
-        # FitnessGoal.GLIDERS,
-        # FitnessGoal.LEFT_TO_RIGHT,
+        FitnessGoal.EXPLODE,
+        FitnessGoal.LEFT_TO_RIGHT,
+        FitnessGoal.RING,
         FitnessGoal.STILL_LIFE,
-        # FitnessGoal.SYMMETRY,
-        # FitnessGoal.THREE_CYCLE,
-        # FitnessGoal.TWO_CYCLE,
+        FitnessGoal.SYMMETRY,
+        FitnessGoal.THREE_CYCLE,
+        FitnessGoal.TWO_CYCLE,
     ]
     bias_options = [
-        # False,
+        False,
         True,
     ]
     composition_options = [
         False,
-        # True,
+        True,
     ]
     stamp_options = [
-        # False,
+        False,
         True,
     ]
     experiment_list = []

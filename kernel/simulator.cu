@@ -24,6 +24,11 @@ class Simulator::DeviceAllocations {
         DeviceData<unsigned int> parent_selections;
         DeviceData<unsigned int> mate_selections;
         DeviceData<Fitness> fitness_scores;
+        // The Videos take up a ton of space on the GPU, and aren't necessary
+        // most of the time, since videos are typically only recorded on
+        // demand. This was added to simplify the ENTROPY fitness goal, which
+        // requires capturing full simulation videos.
+        DeviceData<Video> videos;
 
         DeviceAllocations(int num_species, int size)
             : programs(num_species),
@@ -32,7 +37,9 @@ class Simulator::DeviceAllocations {
               next_gen_genotypes(size),
               parent_selections(size),
               mate_selections(size),
-              fitness_scores(size) {}
+              fitness_scores(size),
+              videos(size) {
+        }
 };
 
 Simulator::Simulator(
@@ -78,17 +85,18 @@ void Simulator::propagate() {
 }
 
 void Simulator::simulate(const FitnessGoal& goal) {
+    // Passing in d->videos is only necessary for the ENTROPY FitnessGoal, but
+    // it's simpler just to use it every time.
     simulate_population<false>(
             size, num_species, goal, d->programs,
-            d->curr_gen_genotypes, d->fitness_scores, nullptr);
+            d->curr_gen_genotypes, d->fitness_scores, d->videos);
 }
 
 Video* Simulator::simulate_and_record(const FitnessGoal& goal) {
-    DeviceData<Video> videos(size);
     simulate_population<true>(
             size, num_species, goal, d->programs,
-            d->curr_gen_genotypes, d->fitness_scores, videos);
-    return videos.copy_to_host();
+            d->curr_gen_genotypes, d->fitness_scores, d->videos);
+    return d->videos.copy_to_host();
 }
 
 const Fitness* Simulator::evolve(

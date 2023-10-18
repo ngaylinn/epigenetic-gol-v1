@@ -70,6 +70,9 @@ class FitnessObserver {
         __device__ void reduce(Fitness* result);
 };
 
+void compute_entropy(
+        const int population_size, Video* videos, Fitness* fitness);
+
 } // namespace epigenetic_gol_kernel
 
 #endif

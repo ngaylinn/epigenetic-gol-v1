@@ -19,8 +19,10 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-import experiments
-import gif_files
+from experiments import (
+    NUM_TRIALS, NUM_SPECIES_GENERATIONS, NUM_ORGANISM_GENERATIONS,
+    experiment_list)
+from gif_files import save_simulation_data_as_image
 from kernel import simulate_organism, FitnessGoal, Simulator
 
 
@@ -28,23 +30,15 @@ from kernel import simulate_organism, FitnessGoal, Simulator
 # generation) to long-format (one row for each generation). This is useful for
 # rendering labeled charts using Pandas and Seaborn.
 SPECIES_INDEX_COLUMNS = (
-    np.repeat(
-        np.arange(experiments.NUM_TRIALS),
-        experiments.NUM_SPECIES_GENERATIONS),
-    np.tile(
-        np.arange(experiments.NUM_SPECIES_GENERATIONS),
-        experiments.NUM_TRIALS))
+    np.repeat(np.arange(NUM_TRIALS), NUM_SPECIES_GENERATIONS),
+    np.tile(np.arange(NUM_SPECIES_GENERATIONS), NUM_TRIALS))
 
 # Used to transform experiment data from a wide-format (one column for each
 # generation) to long-format (one row for each generation). This is useful for
 # rendering labeled charts using Pandas and Seaborn.
 ORGANISM_INDEX_COLUMNS = (
-    np.repeat(
-        np.arange(experiments.NUM_TRIALS),
-        experiments.NUM_ORGANISM_GENERATIONS),
-    np.tile(
-        np.arange(experiments.NUM_ORGANISM_GENERATIONS),
-        experiments.NUM_TRIALS))
+    np.repeat(np.arange(NUM_TRIALS), NUM_ORGANISM_GENERATIONS),
+    np.tile(np.arange(NUM_ORGANISM_GENERATIONS), NUM_TRIALS))
 
 
 def render_random_populations(species_list):
@@ -53,7 +47,7 @@ def render_random_populations(species_list):
     This returns NUM_ORGANISMS simulations for each species in species_list.
     """
     # Simulate just one trial with the given set of species.
-    simulator = Simulator(len(species_list), 1, experiments.NUM_ORGANISMS)
+    simulator = Simulator(len(species_list), 1, NUM_ORGANISMS)
     simulator.populate(np.array([
         species_data.phenotype_program.serialize()
         for species_data in species_list]))
@@ -90,7 +84,7 @@ def visualize_species_data(species_data, species_path):
     np.save(
         species_path.joinpath('best_organism_genotype.npy'),
         best_organism.genotype)
-    gif_files.save_simulation_data_as_image(
+    save_simulation_data_as_image(
         simulate_organism(
             species_data.phenotype_program.serialize(),
             best_organism.genotype),
@@ -119,7 +113,7 @@ def visualize_experiment_data(experiment):
     for file in experiment.path.glob('*'):
         if file.is_dir():
             recursive_delete_directory(file)
-        elif file.resolve() in experiment_files:
+        elif file.resolve() not in experiment_files:
             file.unlink()
 
     experiment_data = experiment.get_results()
@@ -158,7 +152,7 @@ def visualize_experiment_data(experiment):
             species_data.phenotype_program.serialize(),
             best_organism.genotype)
         fitness = best_organism.fitness
-        gif_files.save_simulation_data_as_image(
+        save_simulation_data_as_image(
             simulation,
             experiment.path.joinpath(
                 f'best_organism_from_trial_{trial}_f{fitness}.gif'))
@@ -170,11 +164,11 @@ def visualize_experiment_data(experiment):
         population_path = species_path.joinpath('random_initial_population')
         population_path.mkdir()
         for index, video in enumerate(random_populations[trial]):
-            gif_files.save_simulation_data_as_image(
+            save_simulation_data_as_image(
                 video, population_path.joinpath(f'sample_{index:02d}.gif'))
 
     # Save the overall best simulation found for this experiment.
-    gif_files.save_simulation_data_as_image(
+    save_simulation_data_as_image(
         best_simulation,
         experiment.path.parent.joinpath(
             f'{experiment.name}_f{best_fitness}.gif'))
@@ -190,7 +184,7 @@ def visualize_results():
     args = parser.parse_args()
 
     # For all the experiments run by this project...
-    for experiment in experiments.experiment_list:
+    for experiment in experiment_list:
         # If this experiment has been started, there should be state data saved
         # to the filesystem. Check the last modified time.
         if experiment.state_path.exists():

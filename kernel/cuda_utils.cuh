@@ -67,7 +67,7 @@ class DeviceData {
 
     public:
         DeviceData(
-                int size=1, // Array size, or 1 for single object.
+                const int size=1, // Array size, or 1 for single object.
                 // For line numbers in error reporting. Don't pass an argument.
                 const std::experimental::source_location location =
                     std::experimental::source_location::current()
@@ -78,7 +78,7 @@ class DeviceData {
         }
 
         DeviceData(
-                int size,
+                const int size,
                 const T* h_data, // initialize to host-side data
                 const std::experimental::source_location location =
                     std::experimental::source_location::current()

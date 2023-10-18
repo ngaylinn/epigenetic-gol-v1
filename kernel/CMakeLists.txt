@@ -41,6 +41,14 @@ add_executable(
     selection.cu
     simulator.cu)
 
+# The nvcomp library is needed for the ENTROPY fitness goal. This dependency
+# can be removed if you also disable the ENTROPY fitness code.
+find_package(nvcomp 3.0.2 REQUIRED)
+target_link_libraries(
+    kernel PRIVATE nvcomp::nvcomp)
+target_link_libraries(
+    cpp_demo PRIVATE nvcomp::nvcomp)
+
 # Force all C++ code to build with g++ 10, so that code that runs on host and
 # device is linkable with host-only code. It seems like this has to come after
 # loading the pybind11 libraries to affect them.

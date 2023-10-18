@@ -10,7 +10,7 @@ import datetime
 import signal
 import subprocess
 
-import experiments
+from experiments import NUM_TRIALS, experiment_list
 
 
 user_requested_abort = False
@@ -36,7 +36,7 @@ def format_time(time_in_seconds):
 
 def print_status_summary(completed_trials, elapsed_secs):
     """Prints a summary of overall progress after each trial."""
-    total_trials = len(experiments.experiment_list) * experiments.NUM_TRIALS
+    total_trials = len(experiment_list) * NUM_TRIALS
     percent_done = 100 * completed_trials // total_trials
     print(f'Completed {completed_trials} of '
           f'{total_trials} trials ({percent_done}%) | '
@@ -52,7 +52,7 @@ def estimate_remaining_time():
     result = 0
     # Look at the experiments with the most completed trials first, since they
     # may have historical runtime data from this machine.
-    experiment_list = sorted(experiments.experiment_list, reverse=True)
+    experiment_list = sorted(experiment_list, reverse=True)
     for experiment in experiment_list:
         # If the current experiment has historical data, use that to estimate
         # how long it takes to run the remaining trials of this experiment.
@@ -77,12 +77,12 @@ def run_experiments():
     total_experiments = 0
     completed_trials = 0
     elapsed_secs = 0
-    for experiment in experiments.experiment_list:
+    for experiment in experiment_list:
         total_experiments += 1
         completed_trials += experiment.trial + 1
         elapsed_secs += experiment.elapsed
-    print(f'Running {len(experiments.experiment_list)} experiments of '
-          f'{experiments.NUM_TRIALS} trials each.')
+    print(f'Running {len(experiment_list)} experiments '
+          f'of {NUM_TRIALS} trials each.')
     print_status_summary(completed_trials, elapsed_secs)
 
     # Keep running trials until they're all done (or the user aborts). Always
@@ -91,7 +91,7 @@ def run_experiments():
     while not user_requested_abort:
         # If the experiment with the fewest completed trials is done, then all
         # experiments must be done, so stop here.
-        experiment = min(experiments.experiment_list)
+        experiment = min(experiment_list)
         if experiment.has_finished():
             print('All experiments completed.')
             break

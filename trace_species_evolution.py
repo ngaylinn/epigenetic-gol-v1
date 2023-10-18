@@ -1,20 +1,26 @@
+"""Trace a few generations of species evolution.
+
+This script duplicates Clade.evolve_species, but with added instrumentation to
+capture detailed information about fitness, selection, and phenotypes for each
+generation. This is useful for iterating on the implementation of FitnessGoals
+and debugging the evolutionary process.
+"""
 import os
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from evolution import Clade, compute_species_fitness
-from experiments import NUM_SPECIES, NUM_TRIALS
+from evolution import NUM_SPECIES, NUM_TRIALS, Clade, compute_species_fitness
 import gif_files
 from kernel import Cell, FitnessGoal, WORLD_SIZE
 from phenotype_program import Constraints, CROSSOVER_RATE
 
 # This script only looks at the first few generations of species.
-NUM_SPECIES_GENERATIONS = 3
+NUM_SPECIES_GENERATIONS = 5
 
 
 def main():
-    goal = FitnessGoal.LEFT_TO_RIGHT
+    goal = FitnessGoal.ENTROPY
     constraints = Constraints(
         allow_bias=True,
         allow_stamp_transforms=True,
@@ -37,28 +43,24 @@ def main():
                 file.write(f'{species_index}: {program}\n')
 
         # Evolve some organisms
-        print('Evolving organisms...')
         simulations = clade.evolve_organisms(goal, record=True)
         organism_fitness = clade.organism_fitness_history
         species_fitness = compute_species_fitness(organism_fitness)
 
-        # Breed the next generation and record selections.
-        print('Performing propagation')
-        if generation + 1 < NUM_SPECIES_GENERATIONS:
-            parents, mates = clade.propagate_species(species_fitness)
-            parent_counts = dict(zip(*np.unique(parents, return_counts=True)))
-            mate_counts = dict(zip(*np.unique(mates, return_counts=True)))
-            num_children = [
-                parent_counts.get(index, 0) +
-                CROSSOVER_RATE * mate_counts.get(index, 0)
-                for index in range(NUM_SPECIES)
-            ]
-            selections = np.array(list(zip(parents, mates)))
-        else:
-            num_children = [0] * NUM_SPECIES
+        # Breed the next generation and record selections. This happens even
+        # for the last generation, even though the children go unusued, just to
+        # see which species would have reproduced more.
+        parents, mates = clade.propagate_species(species_fitness)
+        parent_counts = dict(zip(*np.unique(parents, return_counts=True)))
+        mate_counts = dict(zip(*np.unique(mates, return_counts=True)))
+        num_children = [
+            parent_counts.get(index, 0) +
+            CROSSOVER_RATE * mate_counts.get(index, 0)
+            for index in range(NUM_SPECIES)
+        ]
+        selections = np.array(list(zip(parents, mates)))
 
         # Generate a population chart
-        print('Visualizing results...')
         fig = plt.figure(
             f'Generation {generation} Species Summary',
             figsize=(20, 10))
@@ -89,7 +91,7 @@ def main():
             axis.grid(False)
             axis.spines[:].set_visible(True)
             axis.set_xlabel(
-                f'{species_fitness[species_index]}, {fitness}')
+                f'S:{species_fitness[species_index]:,} | O:{fitness:,}')
             axis.tick_params(bottom=False, left=False,
                              labelbottom=False, labelleft=False)
             gif_files.add_simulation_data_to_figure(simulation[0], fig, axis)
@@ -100,80 +102,11 @@ def main():
                          linewidth=num_children[species_index])
         plt.tight_layout()
         fig.savefig(f'{path}/summary.png')
-        plt.clf()
+        plt.close()
 
         gif_files.save_simulation_data_as_image(
             best_simulation, f'{path}/best_organism.gif')
 
 
-def glider_fitness(video):
-    before = np.pad(
-        video[-4 - 1],
-        ((1, 0), (1, 0)),
-        constant_values=Cell.DEAD
-    )[:WORLD_SIZE, :WORLD_SIZE]
-    after = video[-1]
-    static = np.logical_and(
-        video[-1] == video[-2],
-        np.logical_and(
-            video[-2] == video[-3],
-            video[-3] == video[-4]))
-    gif_files.display_simulation_data(static * 255)
-    repeating = np.count_nonzero(
-        np.logical_and(
-            np.logical_not(static),
-            np.logical_and(
-                before == int(Cell.ALIVE),
-                after == int(Cell.ALIVE))))
-    gif_files.display_simulation_data(
-        np.logical_and(
-            before == int(Cell.ALIVE),
-            after == int(Cell.ALIVE)) * 255)
-    not_repeating = np.count_nonzero(
-        np.logical_and(
-            after == int(Cell.ALIVE),
-            np.logical_or(
-                np.logical_not(before == int(Cell.ALIVE)),
-                static)))
-
-    result = (100 * repeating) / (1 + not_repeating)
-    print(f'(100 * {repeating}) / (1 + {not_repeating}) == {result}')
-
-
-def debug_cycling(num_frames, video):
-    prev_a, prev_b, last_a, last_b = video[-4:]
-    a_same = last_a == prev_a
-    b_same = last_b == prev_b
-    static = last_a == last_b
-    alive = last_b == int(Cell.ALIVE)
-    cycling = np.count_nonzero(
-        np.logical_and(
-            a_same, np.logical_and(
-                b_same, np.logical_not(static))))
-    not_cycling = np.count_nonzero(
-        np.logical_and(alive, static))
-    print(f'Live cells: {np.count_nonzero(alive)}')
-    print(f'Static cells: {np.count_nonzero(static)}')
-    print(f'Cycling: {cycling}')
-    print(f'Not cycling: {not_cycling}')
-    print(f'Fitness: {(100 * cycling) / (1 + not_cycling)}')
-
-    last_cycle = video[-num_frames:]
-    prev_cycle = video[-2 * num_frames:-num_frames]
-    cycling = np.count_nonzero(last_cycle == prev_cycle)
-    not_cycling = np.count_nonzero(last_cycle != prev_cycle)
-    print(f'Cycling: {cycling}')
-    print(f'Not cycling: {not_cycling}')
-    print(f'Fitness: {(100 * cycling) / (1 + not_cycling)}')
-    overlay = last_cycle // num_frames + prev_cycle // num_frames
-    gif_files.display_simulation_data(overlay)
-
-
 if __name__ == '__main__':
-    # o22 = gif_files.load_simulation_data_from_image('output/trace/gen000/best_for_species22.gif')
-    # o29 = gif_files.load_simulation_data_from_image('output/trace/gen000/best_for_species29.gif')
-    # glider_fitness(o22)
-    # glider_fitness(o29)
     main()
-    # debug_cycling(
-    #     2, gif_files.load_simulation_data_from_image('output/trace/gen000/best_for_species40.gif'))

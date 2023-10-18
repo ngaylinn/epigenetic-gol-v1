@@ -29,9 +29,10 @@ namespace py = pybind11;
 // Add constants from environment.h to the module.
 void bind_environment(py::module_& m) {
     py::enum_<FitnessGoal>(m, "FitnessGoal")
+        .value("ENTROPY", FitnessGoal::ENTROPY)
         .value("EXPLODE", FitnessGoal::EXPLODE)
-        .value("GLIDERS", FitnessGoal::GLIDERS)
         .value("LEFT_TO_RIGHT", FitnessGoal::LEFT_TO_RIGHT)
+        .value("RING", FitnessGoal::RING)
         .value("STILL_LIFE", FitnessGoal::STILL_LIFE)
         .value("SYMMETRY", FitnessGoal::SYMMETRY)
         .value("THREE_CYCLE", FitnessGoal::THREE_CYCLE)

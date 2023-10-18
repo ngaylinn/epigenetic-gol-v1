@@ -383,9 +383,9 @@ require some mucking around with the thread and block constants in
 configuration in `CMakeLists.txt`.
 
 This project is built using CMake. It requires Python 3.10 (other version
-numbers may also work), [pybind11](https://github.com/pybind/pybind11), and the
-standard CUDA development libraries. It also depends on several common Python
-modules, which can be installed with:
+numbers may also work), [pybind11](https://github.com/pybind/pybind11), the
+standard CUDA development libraries, and the nvcomp library. The It also
+depends on several common Python modules, which can be installed with:
 
 ```bash
 # For managing and analyzing experiment data

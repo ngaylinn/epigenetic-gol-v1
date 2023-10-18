@@ -13,6 +13,17 @@ representations below for randomization, mutatation, and cross-over. The Python
 code is optimized for readability rather than performance, since these
 operations are complicated and happen only once for each species generation
 (which involves thousands of organism lifetimes run with kernel.Simulator).
+
+PhenotypePrograms in Python support "pretty printing" via the str() function.
+The output looks something like this:
+<
+COMPOSE_MODE{innovation_number}(gene_index)
+  GLOBAL_TRANSFORM_MODE{innovation_number}(arg1_gene_index ← scalar_bias, arg2_gene_index), ...
+   ⤷ STAMP_TRANSFORM_MODE{innovation_number}(arg1_gene_index, arg_gen_index ← scalar_bias), ...
+  [[ stamp_bias ]]
+COMPOSE_MODE{innovation_number}(gene_index)
+...
+>
 """
 
 from copy import deepcopy

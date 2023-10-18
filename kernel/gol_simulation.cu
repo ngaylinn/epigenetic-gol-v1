@@ -134,18 +134,27 @@ void simulate_population(
         Video* videos) {
     dim3 grid = { population_size / num_species, num_species };
     switch (goal) {
+        case FitnessGoal::ENTROPY:
+            // For the entropy goal, fitness is computed at the end instead of
+            // incrementally as the simulation is run. This is represented by
+            // telling the GolKernel to use the no-op fitness function and to
+            // record the simulations, then taking extra steps below.
+            GolKernel<FitnessGoal::NONE, true><<<
+                grid, THREADS_PER_BLOCK
+            >>>(programs, genotypes, fitness_scores, videos);
+            break;
         case FitnessGoal::EXPLODE:
             GolKernel<FitnessGoal::EXPLODE, RECORD><<<
                 grid, THREADS_PER_BLOCK
             >>>(programs, genotypes, fitness_scores, videos);
             break;
-        case FitnessGoal::GLIDERS:
-            GolKernel<FitnessGoal::GLIDERS, RECORD><<<
+        case FitnessGoal::LEFT_TO_RIGHT:
+            GolKernel<FitnessGoal::LEFT_TO_RIGHT, RECORD><<<
                 grid, THREADS_PER_BLOCK
             >>>(programs, genotypes, fitness_scores, videos);
             break;
-        case FitnessGoal::LEFT_TO_RIGHT:
-            GolKernel<FitnessGoal::LEFT_TO_RIGHT, RECORD><<<
+        case FitnessGoal::RING:
+            GolKernel<FitnessGoal::RING, RECORD><<<
                 grid, THREADS_PER_BLOCK
             >>>(programs, genotypes, fitness_scores, videos);
             break;
@@ -172,6 +181,11 @@ void simulate_population(
         default:
             return;
     }
+
+    if (goal == FitnessGoal::ENTROPY) {
+        compute_entropy(population_size, videos, fitness_scores);
+    }
+
     CUDA_CHECK_ERROR();
 }
 
