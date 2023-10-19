@@ -19,10 +19,11 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from experiments import (
-    NUM_TRIALS, NUM_SPECIES_GENERATIONS, NUM_ORGANISM_GENERATIONS,
-    experiment_list)
-from gif_files import save_simulation_data_as_image
+from evolution import (
+    NUM_TRIALS, NUM_ORGANISMS, NUM_SPECIES_GENERATIONS,
+    NUM_ORGANISM_GENERATIONS)
+from experiments import experiment_list
+import gif_files
 from kernel import simulate_organism, FitnessGoal, Simulator
 
 
@@ -84,7 +85,7 @@ def visualize_species_data(species_data, species_path):
     np.save(
         species_path.joinpath('best_organism_genotype.npy'),
         best_organism.genotype)
-    save_simulation_data_as_image(
+    gif_files.save_simulation_data_as_image(
         simulate_organism(
             species_data.phenotype_program.serialize(),
             best_organism.genotype),
@@ -102,8 +103,8 @@ def recursive_delete_directory(path):
     path.rmdir()
 
 
-def visualize_experiment_data(experiment):
-    """Summarize the results for a single experiment."""
+def delete_visualizations(experiment):
+    """Delete generated dataviz files associated with the given experiment."""
     # Go through all files in the output directory for this experiment and all
     # of its subdirectories and delete any generated output (that is,
     # everything but the raw experiment data)
@@ -116,9 +117,16 @@ def visualize_experiment_data(experiment):
         elif file.resolve() not in experiment_files:
             file.unlink()
 
-    experiment_data = experiment.get_results()
+    # For each experiment, a video of the best simulation from that experiment
+    # is stored adjacent to the experiment directory. Clear those out, too.
+    for file in experiment.path.parent.glob(f'{experiment.name}*gif'):
+        file.unlink()
 
+
+def visualize_experiment_data(experiment):
+    """Summarize the results for a single experiment."""
     # Generate a chart summarizing species fitness across trials
+    experiment_data = experiment.get_results()
     species_fitness_by_trial = pd.DataFrame(
         np.column_stack(
             (*SPECIES_INDEX_COLUMNS,
@@ -152,7 +160,7 @@ def visualize_experiment_data(experiment):
             species_data.phenotype_program.serialize(),
             best_organism.genotype)
         fitness = best_organism.fitness
-        save_simulation_data_as_image(
+        gif_files.save_simulation_data_as_image(
             simulation,
             experiment.path.joinpath(
                 f'best_organism_from_trial_{trial}_f{fitness}.gif'))
@@ -160,18 +168,62 @@ def visualize_experiment_data(experiment):
             best_fitness = fitness
             best_simulation = simulation
 
-        # Save a sample random population to visualize this species.
-        population_path = species_path.joinpath('random_initial_population')
-        population_path.mkdir()
+        # Visualize a random population of organisms generated for this species
+        # by putting the first frame from all NUM_ORGANISMS videos into a
+        # single image.
+        title = (
+            f'Random Initial Population ({experiment.name}, Trial {trial:d})')
+        fig = plt.figure(title, figsize=(20, 10))
+        fig.suptitle(title)
         for index, video in enumerate(random_populations[trial]):
-            save_simulation_data_as_image(
-                video, population_path.joinpath(f'sample_{index:02d}.gif'))
+            axis = fig.add_subplot(5, 10, index + 1)
+            axis.tick_params(bottom=False, left=False, labelbottom=False,
+                             labelleft=False)
+            gif_files.add_simulation_data_to_figure(video[0], fig, axis)
+        fig.savefig(species_path.joinpath('random_initial_population.svg'))
+        plt.close()
 
-    # Save the overall best simulation found for this experiment.
-    save_simulation_data_as_image(
+    gif_files.save_simulation_data_as_image(
         best_simulation,
         experiment.path.parent.joinpath(
             f'{experiment.name}_f{best_fitness}.gif'))
+
+
+def visualize_cross_experiment_comparisons():
+    # Combine data from all experiments into one table.
+    all_experiment_data = pd.DataFrame()
+    for experiment in experiment_list:
+        this_experiment_data = experiment.get_results()
+        all_experiment_data = pd.concat((all_experiment_data, pd.DataFrame({
+            'FitnessGoal': experiment.fitness_goal,
+            'FitnessScore': this_experiment_data.all_trial_species_fitness[:, -1],
+            'AllowBias': experiment.constraints.allow_bias,
+            'AllowComposition': experiment.constraints.allow_composition,
+            'AllowStampTransforms': experiment.constraints.allow_stamp_transforms,
+        })))
+    # Normalize fitness scores across all FitnessGoals.
+    per_goal_max_scores = {
+        goal: all_experiment_data.where(
+            all_experiment_data['FitnessGoal'] == goal)['FitnessScore'].max()
+        for goal in all_experiment_data['FitnessGoal'].unique()
+    }
+    max_scores = all_experiment_data['FitnessGoal'].map(per_goal_max_scores)
+    all_experiment_data['FitnessScore'] /= max_scores
+
+    # Generate charts summarizing the impact of setting Constraints in
+    # different ways.
+    sns.catplot(data=all_experiment_data, col='FitnessGoal', y='FitnessScore',
+                hue='AllowBias', orient='v', dodge=True, col_wrap=4)
+    plt.savefig('output/experiments/bias.svg')
+    plt.close()
+    sns.catplot(data=all_experiment_data, col='FitnessGoal', y='FitnessScore',
+                hue='AllowComposition', orient='v', dodge=True, col_wrap=4)
+    plt.savefig('output/experiments/composition.svg')
+    plt.close()
+    sns.catplot(data=all_experiment_data, col='FitnessGoal', y='FitnessScore',
+                hue='AllowStampTransforms', orient='v', dodge=True, col_wrap=4)
+    plt.savefig('output/experiments/stamp_transforms.svg')
+    plt.close()
 
 
 def visualize_results():
@@ -202,13 +254,17 @@ def visualize_results():
             summary_update_time = -1
 
         # If this experiment has data that hasn't been visualized yet, or the
-        # user requested a full rebuild, then generate visualizations for this
-        # experiment.
+        # user requested a full rebuild, delete any existing visualizations and
+        # then generate new ones for this experiment.
         if data_update_time > summary_update_time or args.rebuild:
             experiment.path.mkdir(exist_ok=True)
+            delete_visualizations(experiment)
             visualize_experiment_data(experiment)
-    # TODO: If all experiments have at least one trial done, generate charts
-    # comparing performance across experiments.
+
+    # If we haven't yet run at least one trial for each experiment, stop here
+    # and don't bother summarizing cross-experiment comparisons.
+    if all(experiment.has_started() for experiment in experiment_list):
+        visualize_cross_experiment_comparisons()
 
 
 if __name__ == '__main__':
