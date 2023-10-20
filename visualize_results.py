@@ -119,7 +119,7 @@ def visualize_experiment_data(experiment):
     for file in experiment.path.glob('*'):
         if file.is_dir():
             recursive_delete_directory(file)
-        elif file.resolve() in experiment_files:
+        elif file.resolve() not in experiment_files:
             file.unlink()
 
     experiment_data = experiment.get_results()

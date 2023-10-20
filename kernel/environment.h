@@ -37,6 +37,8 @@ typedef unsigned int Fitness;
 
 // Objectives used to evaluate organism fitness.
 enum class FitnessGoal {
+    NONE,          // No-op fitness function.
+    ENTROPY,       // Least compressible final output.
     EXPLODE,       // Fewest live cells -> Most live cells
     LEFT_TO_RIGHT, // Most live cells on left -> Most live cells on right
     RING,          // Most cells arranged in a ring at end.
