@@ -168,7 +168,8 @@ class ExperimentData:
         # Record best species data from each species trial on filesystem.
         self.best_species_per_trial.append(species_data)
         self.best_species_per_trial.sort()
-        self.all_trial_species_fitness[species_trial] = species_data.fitness
+        self.all_trial_species_fitness[species_trial] = (
+            clade.species_fitness_history[species_index])
         self.save_to_filesystem()
 
     def load_from_filesystem(self):
@@ -337,6 +338,7 @@ def build_experiment_list():
     experiment_list variable below.
     """
     goals = [
+        FitnessGoal.ENTROPY,
         FitnessGoal.EXPLODE,
         FitnessGoal.LEFT_TO_RIGHT,
         FitnessGoal.RING,
