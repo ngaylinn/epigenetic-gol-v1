@@ -22,14 +22,14 @@ __global__ void RandomizeKernel(
     // Copy RNG state to registers for faster repeated access.
     curandState rng = rngs[population_index];
 
-    // Set all four scalar genes to random values.
+    // Set all four Scalar genes to random values.
     for (int i = 0; i < NUM_GENES; i++) {
         genotype.scalar_genes[i] = curand(&rng);
     }
 
-    // Randomize every cell value in every stamp. For the sake of diversity,
-    // though, generate a mix of sparse stamps (few live cells) and dense
-    // stamps (many live cells).
+    // Randomize every Cell value in every Stamp. For the sake of diversity,
+    // though, generate a mix of sparse Stamps (few live Cells) and dense
+    // Stamps (many live Cells).
     for (int i = 0; i < NUM_GENES; i++) {
         const float density = curand_uniform(&rng);
         for (int row = 0; row < STAMP_SIZE; row++) {
@@ -71,7 +71,7 @@ __global__ void ReproduceKernel(
     for (int i = 0; i < NUM_GENES; i++) {
         // Which organism should we draw gene data from? If we're doing asexual
         // reproduction, just take from the parent. If we're doing sexual
-        // reproduction, then for each scalar it has a 50% chance of coming
+        // reproduction, then for each Scalar it has a 50% chance of coming
         // from either parent or mate.
         const int source_index =
             (should_crossover && coin_flip(&rng)) ? mate_index : parent_index;
@@ -83,14 +83,14 @@ __global__ void ReproduceKernel(
     }
 
     for (int i = 0; i < NUM_GENES; i++) {
-        // For stamps, crossover involves mixing together half of one stamp
+        // For Stamps, crossover involves mixing together half of one Stamp
         // gene with half of another. Here we randomly determine which halves
         // to recombine.
         const bool crossover_axis = should_crossover ? coin_flip(&rng) : false;
         const bool mate_side = should_crossover ? coin_flip(&rng) : false;
         for (int row = 0; row < STAMP_SIZE; row++) {
             for (int col = 0; col < STAMP_SIZE; col++) {
-                // Split the stamp data down the middle, either horizontally or
+                // Split the Stamp data down the middle, either horizontally or
                 // vertically. Which side does this Cell fall on?
                 const bool side =
                     (crossover_axis ? col : row) < (STAMP_SIZE / 2);

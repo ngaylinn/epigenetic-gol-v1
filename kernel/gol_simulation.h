@@ -21,8 +21,8 @@ namespace epigenetic_gol_kernel {
  * for each organism from the corresponding PhenotypeProgram and Genotype, then
  * applying the GOL state transition rules to see how it evolves from there.
  * The final fitness score for each organism will be stored in fitness_scores
- * at the corresponding position. If RECORD is true, full videos of all
- * simulations will be output to videos.
+ * at the corresponding position. If RECORD is true, full Videos of all
+ * simulations will be output to Videos.
  *
  * This function is usually called via the Simulator class, which manages all
  * the GPU memory allocations used here.
@@ -38,13 +38,13 @@ void simulate_population(
         Video* videos=nullptr);
 
 // Simulate just one organism's full lifetime on the CPU, and record a
-// video. This is used to sample results from the full population.
+// Video. This is used to sample results from the full population.
 Video* simulate_organism(
         const PhenotypeProgram& h_program,
         const Genotype& h_genotype);
 
 // Run a single Game of Life Simulation on the CPU from the starting
-// frame provided. This is used for testing that GOL simulations work
+// Frame provided. This is used for testing that GOL simulations work
 // as expected, regardless of the organism that generated them.
 Video* simulate_phenotype(const Frame& phenotype);
 

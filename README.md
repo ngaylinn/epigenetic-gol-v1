@@ -5,6 +5,9 @@ Project by Nate Gaylinn:
 
 # Overview
 
+TODO: consistent capitalization for Cell, Frame, Video, FitnessGoal, Stamp, Scalar, Genotype, ALIVE, and
+DEAD.
+
 This project is a demonstration of an experimental evolutionary algorithm
 design (tentatively named an "epigenetic algorithm"). It's inspired by a simple
 observation: a gene sequence alone does not describe an organism, because amino

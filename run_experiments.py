@@ -1,4 +1,4 @@
-"""Run experiments to evolve species for various fitness goals.
+"""Run experiments to evolve species for various FitnessGoals.
 
 This script runs evolutionary experiments specified in the experiments module.
 Each experiment is broken down into multiple trials, which are mostly just

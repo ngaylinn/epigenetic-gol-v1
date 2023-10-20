@@ -33,7 +33,7 @@ class FitnessObserver {
         // The member variables scratch_a and scratch_b are
         // passed as arguments so that goal-specific implementations can rename
         // them to reflect their goal-specific meanings. This
-        // version of update can observe the whole frame for this step
+        // version of update can observe the whole Frame for this step
         // (in global memory, which is relatively expensive) to identify
         // global patterns within the board.
         __device__ void update(
@@ -56,7 +56,7 @@ class FitnessObserver {
     public:
         // Observe the GOL game board at the given time step and capture relevant
         // data for computing overall fitness of the simulation. Each call will
-        // consider CELLS_PER_THREAD cells in a row, starting from position
+        // consider CELLS_PER_THREAD Cells in a row, starting from position
         // (row, col). This function is passed both a local and global view of
         // the GOL board, but only one will be used. This allows working in
         // registers when possible, which gives a significant performance boost.

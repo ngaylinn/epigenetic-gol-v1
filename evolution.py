@@ -162,7 +162,7 @@ class Clade:
     def randomize_species(self):
         """Generate a random population of species to evolve.
 
-        This works by starting with a minimal program (just a stamp with no
+        This works by starting with a minimal program (just a Stamp with no
         bias or transforms), then systematically generating a population of
         mutants from that individual to cover a diverse range.
         """

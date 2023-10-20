@@ -1,7 +1,7 @@
-"""Save, load, and display GOL simulation videos as gif files.
+"""Save, load, and display GOL simulation Videos and Frames as gif files.
 
 This project generates Game of Life simulations as Numpy arrays, but these get
-serialized to disk and displayed in the form of gif images (either single
+serialized to disk and displayed in the form of gif images (either static
 images or videos). This library takes care of translating the simulation data
 format to and from gif files with the desired appearance.
 """
@@ -12,12 +12,12 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 
-# When exporting a simulation video, scale it up by this much to make it
+# When exporting a simulation Video, scale it up by this much to make it
 # easier to see.
 IMAGE_SCALE_FACTOR = 2
 
 # Controls the playback speed of the animated gif, including an extended
-# duration for the first frame, so you can see the phenotype clearly.
+# duration for the first Frame, so you can see the phenotype clearly.
 MILLISECONDS_PER_FRAME = 100
 MILLISECONDS_FOR_PHENOTYPE = 10 * MILLISECONDS_PER_FRAME
 
@@ -31,13 +31,13 @@ def simulation_data_to_image(frame):
 
 
 def save_simulation_data_as_image(data, filename):
-    """Save an image or video to a file.
+    """Save an Video or a single Frame from that Video to a gif file.
 
     Parameters
     ----------
     data : np.ndarray of np.uint8
-        A 2D Numpy array representing a still image or a 3D array representing
-        a video.
+        A 2D Numpy array representing a single Frame from a Video or a 3D array
+        representing the whole Video.
     filename : a string describing where to save the file.
     """
     if data.ndim == 2:
@@ -59,17 +59,19 @@ def image_to_simulation_data(image):
 
 
 def load_simulation_data_from_image(filename):
-    """Load an image or video from a file.
+    """Load an Video or a single Frame from a gif file.
 
     Parameters
     ----------
     filename : a string describing where to load the file from.
+        This function assumes the file was created using the function
+        save_simulation_data_as_image, defined above.
 
     Returns
     -------
     np.ndarray of np.uint8
         An array representing the image stored in filename. This may be a 2D
-        array for a single image or a 3D array for a video.
+        array for a single Frame or a 3D array for a whole Video.
     """
     with Image.open(filename) as image:
         n_frames = getattr(image, 'n_frames', 1)
@@ -78,12 +80,12 @@ def load_simulation_data_from_image(filename):
         frames = []
         for frame in range(n_frames):
             image.seek(frame)
-            # When PIL exports gif files, it merges adjacent frames that are
+            # When PIL exports gif files, it merges adjacent Frames that are
             # equivalent and just increases the duration of the static frame.
-            # That's a problem, since we expect all our videos to have the same
-            # number of frames, and there's no way to disable this behavior.
-            # To restore the original frames, then, we must calculate how many
-            # frames got merged using the known duration per frame.
+            # That's a problem, since we expect all our Videos to have the same
+            # number of Frames, and there's no way to disable this behavior.
+            # To restore the original Frames, then, we must calculate how many
+            # Frames got merged using the known duration per frame.
             if frame > 0:
                 repeats = image.info['duration'] // MILLISECONDS_PER_FRAME
             else:
@@ -99,8 +101,8 @@ def add_simulation_data_to_figure(data, fig, axis):
     Parameters
     ----------
     data : np.ndarray of np.uint8
-        A 2D Numpy array representing a still image or a 3D array representing
-        a video.
+        A 2D Numpy array representing a single Frame from a Video or a 3D array
+        representing the whole Video.
     fig : A PLT figure. This function will append to that figure using imshow.
 
     Returns

@@ -42,7 +42,7 @@ class OrganismData:
     fitness_scores: FitnessDType
         The fitness score for this organism
     genotype: numpy array of GenotypeDType
-        The genotype of this organism, useful for reproducing the phenotype on
+        The Genotype of this organism, useful for reproducing the phenotype on
         demand.
     """
     def __init__(self, organism_fitness, genotype):

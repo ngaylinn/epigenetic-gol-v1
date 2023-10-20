@@ -19,13 +19,13 @@ from tests import test_case
 
 
 def visualize_genotype(genotype):
-    """Render a genotype as a plt figure with images."""
+    """Render a Genotype as a plt figure with images."""
     cols = NUM_GENES
     fig = plt.figure("Genotype")
     for gene_index in range(cols):
         axis = fig.add_subplot(2, cols, gene_index + 1)
-        # Make a primitive bar chart representing the scalar genes
-        # that's the same width and appearance as a stamp gene value.
+        # Make a primitive bar chart representing the Scalar genes
+        # that's the same width and appearance as a Stamp gene value.
         scale_factor = (1 << 32) / STAMP_SIZE
         raw_value = genotype['scalar_genes'][gene_index]
         scaled_value = int(raw_value / scale_factor)
@@ -136,7 +136,7 @@ class TestReproduction(test_case.TestCase):
         num_species, num_trials, num_organisms = 32, 32, 32
         population_size = num_species * num_trials * num_organisms
 
-        # Set all genotype values to 0 and have every organism breed with
+        # Set all Genotype values to 0 and have every organism breed with
         # itself. Any non-zero values are the result of mutations.
         genotypes = np.zeros(
             (num_species, num_trials, num_organisms), dtype=GenotypeDType)

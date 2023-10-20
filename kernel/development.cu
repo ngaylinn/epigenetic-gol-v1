@@ -55,7 +55,7 @@ __device__ void apply_align(
     constexpr int center = (WORLD_SIZE - STAMP_SIZE) / 2;
     constexpr int max_edge = WORLD_SIZE - STAMP_SIZE;
 
-    // Align the stamp to the center or edge of the GOL board, vertically
+    // Align the Stamp to the center or edge of the GOL board, vertically
     // and / or horizontally.
     row = (v_align == 0 ? min_edge : (v_align == 1 ? center : max_edge));
     col = (h_align == 0 ? min_edge : (h_align == 1 ? center : max_edge));
@@ -68,7 +68,7 @@ __device__ void apply_array_1d(
     int col_offset = get_scalar(op.args[1], genotype) % WORLD_SIZE;
 
     // Find out how many repetitions of offset it would take to reach this
-    // row / column position, then draw the stamp only for discrete multiples
+    // row / column position, then draw the Stamp only for discrete multiples
     // of rep_number.
     // This is equivalent to doing a modulus operation, like in
     // apply_array_2d, except using min constrains repetitions to s
@@ -115,8 +115,8 @@ template<int SIZE>
 __device__ void apply_flip(
         const Genotype& genotype, const TransformOperation& op,
         int& row, int& col) {
-    // TODO: It's probably better to use two scalars rather than
-    // packing two values into a single scalar.
+    // TODO: It's probably better to use two Scalars rather than
+    // packing two values into a single Scalar.
     int axes = get_scalar(op.args[0], genotype);
     row = (axes & 0b01) ? SIZE - 1 - row : row;
     col = (axes & 0b10) ? SIZE - 1 - col : col;
@@ -126,8 +126,8 @@ template<int SIZE>
 __device__ void apply_mirror(
         const Genotype& genotype, const TransformOperation& op,
         int& row, int& col) {
-    // TODO: It's probably better to use two scalars rather than
-    // packing two values into a single scalar.
+    // TODO: It's probably better to use two Scalars rather than
+    // packing two values into a single Scalar.
     int axes = get_scalar(op.args[0], genotype);
     row = (axes & 0b01) && row >= SIZE / 2 ? SIZE - 1 - row : row;
     col = (axes & 0b10) && col >= SIZE / 2 ? SIZE - 1 - col : col;
@@ -137,8 +137,8 @@ template<int SIZE>
 __device__ void apply_quarter(
         const Genotype& genotype, const TransformOperation& op,
         int& row, int& col) {
-    // TODO: It's probably better to use two scalars rather than
-    // packing two values into a single scalar.
+    // TODO: It's probably better to use two Scalars rather than
+    // packing two values into a single Scalar.
     int axes = get_scalar(op.args[0], genotype);
     constexpr int half = SIZE / 2;
     unsigned char quadrant_bitmask = 1 << ((row >= half) | (col >= half) << 1);
@@ -213,7 +213,7 @@ __device__ void apply_translate(
 // ---------------------------------------------------------------------------
 
 // Apply the TransformOperation op to warp the phenotype coordinate system,
-// using argument values found in genotype. Row and col are modified by this
+// using argument values found in Genotype. Row and col are modified by this
 // function and represent a point in phenotype space before / after
 // transformation. SIZE is the dimension of the square space to transform.
 // This template has two implementations, one to warp a full GOL board and
@@ -317,30 +317,30 @@ __device__ void apply_transform_list(
     }
 }
 
-// Draw a stamp onto the phenotype. This includes applying all the global and
+// Draw a Stamp onto the phenotype. This includes applying all the global and
 // Stamp-level TransformOperations associated with the DrawOperation. For
 // convenience when compositing multiple draw operations, this function returns
-// a boolean indicating whether the cell at (row, col) would be set to ALIVE
+// a boolean indicating whether the Cell at (row, col) would be set to ALIVE
 // (true) or DEAD (false) by this draw operation.
 __device__ bool apply_draw(
         const Genotype& genotype, const DrawOperation& draw_op,
         int& row, int& col) {
     // Transform the global coordinate space. This makes it possible to
-    // position the stamp anywhere, repeat the stamp, and warp it in various
-    // ways. Stamp data is drawn from position row, col within the stamp, which
+    // position the Stamp anywhere, repeat the Stamp, and warp it in various
+    // ways. Stamp data is drawn from position row, col within the Stamp, which
     // are the distance from the top-left corner initially, before transforms
     // get applied.
     apply_transform_list<WORLD_SIZE>(
             genotype, draw_op.global_transforms, row, col);
 
-    // Make sure not to read data from beyond the extents of the stamp found in
-    // the genotype. Anything out of bounds for the stamp should be empty space.
+    // Make sure not to read data from beyond the extents of the Stamp found in
+    // the Genotype. Anything out of bounds for the Stamp should be empty space.
     // This is computed BEFORE applying the Stamp transforms so they won't
     // distort the result by modifying row and col further.
     bool in_bounds = (row >= 0 && row < STAMP_SIZE &&
                       col >= 0 && col < STAMP_SIZE);
 
-    // Transform the stamp coordinate space. This makes it possible to constrain
+    // Transform the Stamp coordinate space. This makes it possible to constrain
     // what Stamp patterns are possible and promotes neutral mutations.
     apply_transform_list<STAMP_SIZE>(
             genotype, draw_op.stamp_transforms, row, col);
@@ -349,8 +349,8 @@ __device__ bool apply_draw(
     in_bounds &= (row >= 0 && row < STAMP_SIZE &&
                   col >= 0 && col < STAMP_SIZE);
 
-    // Actually fetch the relevant data from the genotype and determine whether
-    // this cell should be set ALIVE or DEAD.
+    // Actually fetch the relevant data from the Genotype and determine whether
+    // this Cell should be set ALIVE or DEAD.
     const Stamp& stamp = get_stamp(draw_op.stamp, genotype);
     return in_bounds && stamp[row][col] == Cell::ALIVE;
 }
@@ -374,8 +374,8 @@ __device__ void make_phenotype(
         // draw operation can transform the coordinate space independently.
         int r = row;
         int c = col;
-        // Figure out whether this draw operation wants to set the cell to dead
-        // or alive, then merge that with the value from previous draws.
+        // Figure out whether this draw operation wants to set the Cell to DEAD
+        // or ALIVE, then merge that with the value from previous draws.
         const bool new_value = apply_draw(genotype, program.draw_ops[i], r, c);
         switch (program.draw_ops[i].compose_mode) {
             case ComposeMode::OR:
@@ -391,11 +391,11 @@ __device__ void make_phenotype(
                 break;
         };
     }
-    // Actually modify the cell value based on composing all the draw
+    // Actually modify the Cell value based on composing all the draw
     // operations. Note, the code above uses bool values only to translate into
     // Cell values here because treating ALIVE and DEAD as bools would have
     // counter-intuitive behavior. The value of ALIVE is 0x00 so that a live
-    // cell appears black in the output images.
+    // Cell appears black in the output images.
     cell = alive ? Cell::ALIVE : Cell::DEAD;
 }
 

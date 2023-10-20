@@ -19,7 +19,7 @@ __device__ __host__ Cell get_next_state(
     // Count up neighbors of this Cell that are ALIVE by looking at all the
     // adjacent Cells that are in bounds for this Frame. Bounds checking is
     // done with min / max which is faster than using ifs or ternaries. This
-    // produces characteristic quirky behavior at the edges of the board. 
+    // produces characteristic quirky behavior at the edges of the board.
     const int prev_row = max(curr_row - 1, 0);
     const int next_row = min(curr_row + 1, WORLD_SIZE - 1);
     const int prev_col = max(curr_col - 1, 0);
@@ -60,20 +60,20 @@ __global__ void GolKernel(
     const Genotype& genotype = genotypes[population_index];
     Fitness& fitness = fitness_scores[population_index];
 
-    // Calculating the next frame of a Game of Life simulation requires looking
-    // at all of a Cell's neighbors in the previous frame. Since it takes many
+    // Calculating the next Frame of a Game of Life simulation requires looking
+    // at all of a Cell's neighbors in the previous Frame. Since it takes many
     // warps to compute a single Frame, this means adjacent warps need to share
-    // state for the previous frame (but not the next one). We store one whole
+    // state for the previous Frame (but not the next one). We store one whole
     // Frame in shared memory (in theory you only need enough to represent the
     // seams between warps, but that scheme would require extra work) and just
-    // the cells for the next frame being computed by this thread in registers.
+    // the Cells for the next Frame being computed by this thread in registers.
     __shared__ Frame last_frame;
     Cell curr_frame[CELLS_PER_THREAD];
 
     FitnessObserver<GOAL> fitness_observer;
 
-    // Interpret this organism's genotype to generate the phenotype, which is
-    // the first frame of the simulation.
+    // Interpret this organism's Genotype to generate the phenotype, which is
+    // the first Frame of the simulation.
     for (int i = 0; i < CELLS_PER_THREAD; i++) {
         // TODO: This operation can be quite expensive. To further optimize
         // this, try "compiling" the phenotype program once per species trial.
@@ -82,19 +82,19 @@ __global__ void GolKernel(
         make_phenotype(program, genotype, row, col+i, curr_frame[i]);
     }
 
-    // Make sure this frame is finished before looking at it.
+    // Make sure this Frame is finished before looking at it.
     __syncthreads();
 
     // Run the simulated lifetime...
     for (int step = 0; step < NUM_STEPS; step++) {
-        // Copy the most recently computed frame data into shared memory and
+        // Copy the most recently computed Frame data into shared memory and
         // wait for it to finish before calling get_next_state below. Since
         // each thread works on CELLS_PER_THREAD contiguous Cells, we can do
         // this with a single memcpy instead of a loop.
         memcpy(&last_frame[row][col], curr_frame, sizeof(curr_frame));
         __syncthreads();
 
-        // Record videos of all simulations, but only if requested because
+        // Record Videos of all simulations, but only if requested because
         // it's expensive to do that. This check will be optimized away by
         // the compiler.
         if (RECORD) {
@@ -104,11 +104,11 @@ __global__ void GolKernel(
 
         fitness_observer.observe(step, row, col, curr_frame, last_frame);
 
-        // If we've already computed, evaluated, and saved the last frame, then
+        // If we've already computed, evaluated, and saved the last Frame, then
         // stop here before computing another one.
         if (step == NUM_STEPS - 1) break;
 
-        // Compute the next frame from the previous one.
+        // Compute the next Frame from the previous one.
         for (int i = 0; i < CELLS_PER_THREAD; i++) {
             curr_frame[i] = get_next_state(row, col+i, last_frame);
         }
@@ -202,9 +202,9 @@ template void simulate_population<false>(
 
 Video* simulate_phenotype(const Frame& phenotype) {
     Video* video = (Video*) new Video;
-    // Fill in the first frame of the Video from the phenotype
+    // Fill in the first Frame of the Video from the phenotype
     memcpy(video, &phenotype, sizeof(Frame));
-    // Compute the remaining frames from the first one.
+    // Compute the remaining Frames from the first one.
     for (int step = 1; step < NUM_STEPS; step++) {
         for (int row = 0; row < WORLD_SIZE; row++) {
             for (int col = 0; col < WORLD_SIZE; col++) {

@@ -1,4 +1,4 @@
-"""Render charts and capture sample videos from experiment runs.
+"""Render charts and capture sample Videos from experiment runs.
 
 This script looks for experiment results in the output directory and generates
 data visualizations for each one found. By default, this script skips over any
@@ -43,7 +43,7 @@ ORGANISM_INDEX_COLUMNS = (
 
 
 def render_random_populations(species_list):
-    """Record simulation videos from random, unevolved populations.
+    """Record simulation Videos from random, unevolved populations.
 
     This returns NUM_ORGANISMS simulations for each species in species_list.
     """
@@ -52,7 +52,7 @@ def render_random_populations(species_list):
     simulator.populate(np.array([
         species_data.phenotype_program.serialize()
         for species_data in species_list]))
-    # TODO: It would be slightly nicer use a no-op fitness goal, since the
+    # TODO: It would be slightly nicer use a no-op FitnessGoal, since the
     # fitness function doesn't actually contribute to the result.
     simulations = simulator.simulate_and_record(FitnessGoal.STILL_LIFE)
     # Get rid of the pointless trial index, since we only ran one trial.
@@ -80,7 +80,7 @@ def visualize_species_data(species_data, species_path):
     with open(species_path.joinpath('phenotype_program.txt'), 'w') as file:
         file.write(str(species_data.phenotype_program))
 
-    # Save the genotype and video for the best organism of this species.
+    # Save the Genotype and simulation for the best organism of this species.
     best_organism = species_data.best_organism
     np.save(
         species_path.joinpath('best_organism_genotype.npy'),
@@ -117,7 +117,7 @@ def delete_visualizations(experiment):
         elif file.resolve() not in experiment_files:
             file.unlink()
 
-    # For each experiment, a video of the best simulation from that experiment
+    # For each experiment, a gif of the best simulation from that experiment
     # is stored adjacent to the experiment directory. Clear those out, too.
     for file in experiment.path.parent.glob(f'{experiment.name}*gif'):
         file.unlink()
@@ -169,7 +169,7 @@ def visualize_experiment_data(experiment):
             best_simulation = simulation
 
         # Visualize a random population of organisms generated for this species
-        # by putting the first frame from all NUM_ORGANISMS videos into a
+        # by putting the first Frame from all NUM_ORGANISMS Videos into a
         # single image.
         title = (
             f'Random Initial Population ({experiment.name}, Trial {trial:d})')

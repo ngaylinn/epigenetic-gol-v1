@@ -48,7 +48,7 @@ class TestCase(unittest.TestCase):
             f'Arrays differ in {diffs} of {size} positions: {msg}')
 
     def assertSimulationEqual(self, simulation1, simulation2):
-        """Assert that two simulation frames or videos are the same."""
+        """Assert that two simulation Frames or Videos are the same."""
         if np.array_equal(simulation1, simulation2):
             return
         fig = plt.figure('Arguments do not match.')
@@ -59,7 +59,7 @@ class TestCase(unittest.TestCase):
         plt.show()
 
     def assertGolden(self, data, test_id=None):
-        """Verify that frame matches output from a previous run.
+        """Verify that data matches output from a previous run.
 
         This assertion checks to see if the output from a previous run of this
         test has already been saved as a file (in which case it is presumed to
@@ -72,9 +72,9 @@ class TestCase(unittest.TestCase):
         ----------
         data : np.ndarray of np.uint8
             An array representing image data. This can either be a 2D array
-            representing a single image, or a 3D array representing a video
-            with several frames. All pixels are assumed to be grayscale values
-            between 0 and 255.
+            representing a single Frame of a Video, or a 3D array representing
+            a Video with several Frames. All pixels are assumed to be grayscale
+            values between 0 and 255.
         test_id : string
             By default, this method uses the test name as the name of the
             golden file. To call assertGolden more than once in a single test,

@@ -25,9 +25,9 @@ class Simulator::DeviceAllocations {
         DeviceData<unsigned int> mate_selections;
         DeviceData<Fitness> fitness_scores;
         // The Videos take up a ton of space on the GPU, and aren't necessary
-        // most of the time, since videos are typically only recorded on
-        // demand. This was added to simplify the ENTROPY fitness goal, which
-        // requires capturing full simulation videos.
+        // most of the time, since Videos are typically only recorded on
+        // demand. This was added to simplify the ENTROPY FitnessGoal, which
+        // requires capturing full simulation Videos.
         DeviceData<Video> videos;
 
         DeviceAllocations(int num_species, int size)

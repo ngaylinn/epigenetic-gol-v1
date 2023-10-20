@@ -48,8 +48,8 @@ class TestSimulation(test_case.TestCase):
             clade = TestClade()
             simulator.populate(clade.serialize())
             simulations = simulator.simulate_and_record(goal)
-            # Flatten out the collection of videos orgnanized by species,
-            # trial, and organism into a flat list with one video for each
+            # Flatten out the collection of Videos orgnanized by species,
+            # trial, and organism into a flat list with one Video for each
             # individual in the population.
             result['sims'] = np.reshape(
                 simulations, (-1, NUM_STEPS, WORLD_SIZE, WORLD_SIZE))
@@ -69,10 +69,10 @@ class TestSimulation(test_case.TestCase):
         simulator = Simulator(3, 3, 32)
         clade = TestClade()
         simulator.populate(clade.serialize())
-        # Grab just the first video from the GPU (the rest should be the same)
+        # Grab just the first Video from the GPU (the rest should be the same)
         gpu_simulation = simulator.simulate_and_record(goal)[0][0][0]
         # Run the CPU simulation with the same randomly generated phenotype we
-        # used on the GPU, but then recompute the rest of the video.
+        # used on the GPU, but then recompute the rest of the Video.
         cpu_simulation = simulate_phenotype(gpu_simulation[0])
         self.assertSimulationEqual(gpu_simulation, cpu_simulation)
 

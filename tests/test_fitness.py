@@ -14,7 +14,7 @@ def count_alive(array):
 class TestFitness(test_case.TestCase):
     def evolve_organism(self, goal):
         # The population size was chosen to be as small as possible while
-        # producing stereotypic results from all fitness functions.
+        # producing stereotypic results from all FitnessGoals.
         simulator = Simulator(1, 1, 1200)
         clade = TestClade()
         fitness = simulator.evolve(clade.serialize(), goal, 100).flatten()
@@ -43,7 +43,7 @@ class TestFitness(test_case.TestCase):
         ROW_DELTA = 1
         COL_DELTA = 1
         TIME_DELTA = 4
-        # Compare the last frame to the one TIME_DELTA frames before, but
+        # Compare the last Frame to the one TIME_DELTA Frames before, but
         # shifted by ROW_DELTA rows and COL_DELTA cols. Cells in common
         # represent a pattern that is "moving" across the GOL world in the same
         # speed and direction as a glider.
@@ -138,16 +138,16 @@ class TestFitness(test_case.TestCase):
         moving = np.logical_or(
             last_cycle[-1] != last_cycle[-2],
             last_cycle[-2] != last_cycle[-3])
-        # Count up cells where the last two steps match the two before, but the
-        # cell changed states.
+        # Count up Cells where the last two steps match the two before, but the
+        # Cell changed states.
         cycling = np.count_nonzero(np.logical_and(repeating, moving))
-        # Cells that were dead in both of the last two steps.
+        # Cells that were DEAD in both of the last two steps.
         dead = np.logical_and(
             last_cycle[-1] == int(Cell.DEAD),
             np.logical_and(
                 last_cycle[-2] == int(Cell.DEAD),
                 last_cycle[-3] == int(Cell.DEAD)))
-        # Count up cells where the cell was alive at some point in the last two
+        # Count up Cells where the Cell was ALIVE at some point in the last two
         # steps but did not contribute to a repeating pattern.
         not_cycling = np.count_nonzero(
             np.logical_and(np.logical_not(repeating), np.logical_not(dead)))
@@ -165,14 +165,14 @@ class TestFitness(test_case.TestCase):
             last_cycle[-2] == prev_cycle[-2])
         # Cells where the last two steps had the same value
         moving = last_cycle[-1] != last_cycle[-2]
-        # Count up cells where the last two steps match the two before, but the
+        # Count up Cells where the last two steps match the two before, but the
         # cell changed states.
         cycling = np.count_nonzero(np.logical_and(repeat, moving))
-        # Cells that were dead in both of the last two steps.
+        # Cells that were DEAD in both of the last two steps.
         dead = np.logical_and(
             last_cycle[-1] == int(Cell.DEAD),
             last_cycle[-2] == int(Cell.DEAD))
-        # Count up cells where the cell was alive at some point in the last two
+        # Count up Cells where the Cell was ALIVE at some point in the last two
         # steps but did not contribute to a repeating pattern.
         not_cycling = np.count_nonzero(
             np.logical_and(np.logical_not(repeat), np.logical_not(dead)))

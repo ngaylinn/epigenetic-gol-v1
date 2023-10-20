@@ -1,7 +1,7 @@
 """Classes for manipulating C++ PhenotypeProgram structs from Python.
 
 This project uses a PhenotypeProgram struct to describe a species-specific way
-of turning a genotype into a phenotype. These objects have two representations.
+of turning a Genotype into a phenotype. These objects have two representations.
 The kernel module defines C++ structs to store PhenotypeProgram data, and uses
 those structs to generate phenotypes in development.cu. This side of the code
 is designed to be relatively efficient, since it must be run once for every
@@ -61,7 +61,7 @@ GLOBAL_TRANSFORM_OPS = [
     TransformMode.TRANSLATE,
 ]
 
-# Transform operations that can be applied to a stamp gene. This list must be
+# Transform operations that can be applied to a Stamp gene. This list must be
 # kept consistent with apply_transform in kernel/development.cu.
 STAMP_TRANSFORM_OPS = [
     TransformMode.CROP,
@@ -204,7 +204,7 @@ class Argument:
     Attributes
     ----------
     gene_index : int
-        Which gene in the genotype to draw data from for this argument.
+        Which gene in the Genotype to draw data from for this argument.
     bias_mode : kernel.BiasMode
         How the argument value should be biased.
     bias : Stamp or Scalar
@@ -219,7 +219,7 @@ class Argument:
         # cause them to diverge. This allows coordinated behavior and graduated
         # complexity in the population.
         self.gene_index = 0
-        # By default, operations take their arguments from the genotype without
+        # By default, operations take their arguments from the Genotype without
         # any evolved preference for what the value should be.
         self.bias_mode = BiasMode.NONE
         self.bias = None
@@ -301,7 +301,7 @@ class TransformOperation:
                mutation_rate=MUTATION_RATE):
         """Maybe randomly modify a TransformOperation.
 
-        In order to support gene bias, the genotypes from a whole population of
+        In order to support gene bias, the Genotypes from a whole population of
         organisms evolved with this PhenotypeProgram are passed in. A bias value
         may be chosen at random from the evolved gene values.
         """
@@ -358,7 +358,7 @@ class DrawOperation:
     global_transforms : list of TransformOperation
         A list of TransformOperations to apply to the phenotype globally.
     stamp_transforms : list of TransformOperation
-        A list of TransformOperations to apply to stamp before drawing it.
+        A list of TransformOperations to apply to Stamp before drawing it.
     """
     def __init__(self, inno, compose_mode=None, stamp=None,
                  global_transforms=None, stamp_transforms=None):
@@ -445,18 +445,18 @@ class DrawOperation:
         # Choose a bias value that might be applied to the Stamp Argument. Look
         # at the relevant Stamp gene for every organism of this species, take
         # the mode, and maybe use that as bias in the next generation. That
-        # means a cell will be biased towards ALIVE if most organisms in the
-        # population had an ALIVE cell in that position.
+        # means a Cell will be biased towards ALIVE if most organisms in the
+        # population had an ALIVE Cell in that position.
         evolved_stamps = genotypes['stamp_genes'][:, self.stamp.gene_index]
         bias = stats.mode(evolved_stamps, keepdims=False).mode
-        # If the genotype data produces a blank stamp (this always happens in
+        # If the Genotype data produces a blank Stamp (this always happens in
         # the initial generation), then don't use it for bias, since it would
         # effectively disable this DrawOperation.
         if np.count_nonzero(bias) == 0:
             bias = None
         self.stamp.mutate(bias, constraints, mutation_rate)
 
-        # Maybe add new global or stamp transform
+        # Maybe add new global or Stamp transform
         if (coin_flip(mutation_rate) and
                 len(self.global_transforms) + 1 < MAX_OPERATIONS):
             self.global_transforms.append(

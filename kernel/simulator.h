@@ -68,7 +68,7 @@ class Simulator {
         // Simulate a population for one lifetime.
         void simulate(const FitnessGoal& goal);
 
-        // Same as simulate, but records a video of the full lifetime of the
+        // Same as simulate, but records a Video of the full lifetime of the
         // full population. Note, this is much slower than simulate.
         Video* simulate_and_record(const FitnessGoal& goal);
 

@@ -15,8 +15,8 @@
 
 namespace epigenetic_gol_kernel {
 
-// Calculate one cell value in an organism phenotype. Calling this function will
-// modify the value of Cell, which occupies position (row, col) within the GOL
+// Calculate one Cell value in an organism phenotype. Calling this function will
+// modify the value of cell, which occupies position (row, col) within the GOL
 // board. The new value for Cell is computed by interpreting program and running
 // it against the data found in genotype.
 __device__ void make_phenotype(

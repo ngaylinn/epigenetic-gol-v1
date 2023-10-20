@@ -20,7 +20,7 @@ __device__ void FitnessObserver<GOAL>::observe(
         const int& step, const int& row, const int& col,
         const Cell local[CELLS_PER_THREAD], const Frame& global) {
     for (int i = 0; i < CELLS_PER_THREAD; i++) {
-        // Only some fitness goals require a global view of the GOL simulation,
+        // Only some FitnessGoals require a global view of the GOL simulation,
         // which is a bit less efficient than using a local view. The compiler
         // can optimize away the switch statement and directly call the correct
         // method for each goal.
@@ -31,14 +31,14 @@ __device__ void FitnessObserver<GOAL>::observe(
             case FitnessGoal::STILL_LIFE:
             case FitnessGoal::THREE_CYCLE:
             case FitnessGoal::TWO_CYCLE:
-                // Observe this cell and store incremental fitness data in
+                // Observe this Cell and store incremental fitness data in
                 // scratch_a[i] and scratch_b[i]. The meaning of these two values
                 // is goal-specific.
                 update(step, row, col+i, local[i], scratch_a[i], scratch_b[i]);
                 break;
 
             case FitnessGoal::SYMMETRY:
-                // Observe this cell and store incremental fitness data in
+                // Observe this Cell and store incremental fitness data in
                 // scratch_a[i] and scratch_b[i]. The meaning of these two values
                 // is goal-specific.
                 update(step, row, col+i, global, scratch_a[i], scratch_b[i]);
@@ -72,7 +72,7 @@ __device__ void FitnessObserver<GOAL>::reduce(Fitness* result) {
 // must implement one of the two update methods. Empty implementations are
 // provided so the compiler won't complain about a missing definition for
 // whichever version goes unused. The finalize method also has a default
-// implementation, mostly for supporting the NONE and ENTROPY fitness goals,
+// implementation, mostly for supporting the NONE and ENTROPY FitnessGoals,
 // which don't have their own implementation.
 template<FitnessGoal GOAL>
 __device__ void FitnessObserver<GOAL>::update(
@@ -220,7 +220,7 @@ __device__ void update_cycle(
     // Record a history of this cell's state, one bit per simulation step.
     history = history << 1 | (cell == Cell::ALIVE);
 
-    // Only on the last step, review the history to count cycling cells.
+    // Only on the last step, review the history to count cycling Cells.
     if (step < NUM_STEPS - 1) return;
 
     // Capture the pattern found in the last N steps of the simulation, then
@@ -257,7 +257,7 @@ __device__ void FitnessObserver<FitnessGoal::THREE_CYCLE>::update(
 template<>
 __device__ void FitnessObserver<FitnessGoal::THREE_CYCLE>::finalize(
         const uint32_t& not_cycling, const uint32_t& cycling, Fitness* result) {
-    // Prefer simulations with more cells cycling, and with relatively little
+    // Prefer simulations with more Cells cycling, and with relatively little
     // "debris" that's not participating.
     *result = (cycling * cycling) / (1 + not_cycling);
 }
@@ -277,7 +277,7 @@ __device__ void FitnessObserver<FitnessGoal::TWO_CYCLE>::update(
 template<>
 __device__ void FitnessObserver<FitnessGoal::TWO_CYCLE>::finalize(
         const uint32_t& not_cycling, const uint32_t& cycling, Fitness* result) {
-    // Prefer simulations with more cells cycling, and with relatively little
+    // Prefer simulations with more Cells cycling, and with relatively little
     // "debris" that's not participating.
     *result = (cycling * cycling) / (1 + not_cycling);
 }
@@ -293,13 +293,13 @@ __device__ void FitnessObserver<FitnessGoal::RING>::update(
         uint32_t& on_target, uint32_t& off_target) {
     if (step < NUM_STEPS - 1) return;
 
-    // These constants describe a ring of live cells in the center of the GOL
+    // These constants describe a ring of live Cells in the center of the GOL
     // simulation, with dead space in the middle and around the ring.
     constexpr int CENTER = WORLD_SIZE / 2;
     constexpr int INNER_RADIUS = CENTER / 4;
     constexpr int OUTER_RADIUS = 3 * CENTER / 4;
 
-    // Calculate whether this cell is within the ring or outside it. Note that
+    // Calculate whether this Cell is within the ring or outside it. Note that
     // we compare squared distance values rather than the actual distance
     // (which requires calculating square roots, which is slow).
     int distance_squared = (
@@ -325,11 +325,11 @@ __device__ void FitnessObserver<FitnessGoal::RING>::finalize(
 // ---------------------------------------------------------------------------
 
 // The Entropy FitnessGoal requires invoking the nvcomp library to find the
-// compression rates for a batch of simulation videos. That API call can't be
+// compression rates for a batch of simulation Videos. That API call can't be
 // called from the GPU, which means the Entropy FitnessGoal can't be computed
 // incrementally while the simulation is being run. Instead, it's computed at
-// the end, with access to the full simulation video. This is much slower than
-// the other goals, unfortunately.
+// the end, with access to the full simulation Video. Unfortunately, this is
+// much slower than the other goals (about 12x).
 
 // This GPU kernel finalizes the fitness computation setup by compute_entropy.
 __global__ void EntropyFitnessKernel(
@@ -340,20 +340,20 @@ __global__ void EntropyFitnessKernel(
     const int population_index = blockIdx.x * blockDim.x + threadIdx.x;
     if (population_index >= population_size) return;
 
-    // Grab the compressed byte size of the first and last frame from the GOL
+    // Grab the compressed byte size of the first and last Vrame from the GOL
     // simulation of a single organism.
     const size_t first_frame_size = compressed_bytes[2 * population_index];
     const size_t last_frame_size = compressed_bytes[2 * population_index + 1];
 
-    // Prefer simulations that are less compressible, both in their first frame
-    // and in their last frame.
+    // Prefer simulations that are less compressible, both in their first Frame
+    // and in their last Frame.
     fitness_scores[population_index] = last_frame_size * first_frame_size;
 }
 
 void compute_entropy(
         const int population_size, Video* d_videos, Fitness* d_fitness_scores) {
     // Parameters for compression. For each organism, consider both the first
-    // and the last frame from their simulation (two samples per organism).
+    // and the last Frame from their simulation (two samples per organism).
     const unsigned int num_samples = 2 * population_size;
     const nvcompBatchedGdeflateOpts_t options = { 1 };
 
@@ -365,12 +365,12 @@ void compute_entropy(
     nvcompBatchedGdeflateCompressGetTempSize(
         num_samples, sizeof(Frame), options, &temp_bytes);
 
-    // Allocate device-side memory to hold the compressed video frames.
+    // Allocate device-side memory to hold the compressed Frames.
     DeviceData<uint8_t> d_compressed(max_compressed_bytes * num_samples);
 
     // Setup host-side data structures for pointers and byte counts. The
     // *ptrs arrays point to each item in the data blocks for compressed and
-    // uncompressed videos. The *bytes arrays is a parallel array indicating
+    // uncompressed Frames. The *bytes arrays is a parallel array indicating
     // the size in bytes for each item to compress.
     void* h_uncompressed_ptrs[num_samples];
     void* h_compressed_ptrs[num_samples];
@@ -382,8 +382,8 @@ void compute_entropy(
         int sample1 = 2 * i;
         int sample2 = 2 * i + 1;
         // Calculate pointers into the input and output data structures. For
-        // the input, we point to the first and last frame of each simulation
-        // video. For output, we just point at contiguous spaces in the memory
+        // the input, we point to the first and last Frame of each simulation
+        // Video. For output, we just point at contiguous spaces in the memory
         // block.
         h_uncompressed_ptrs[sample1] = &(d_videos[i][0]);
         h_uncompressed_ptrs[sample2] = &(d_videos[i][NUM_STEPS - 1]);
@@ -417,8 +417,8 @@ void compute_entropy(
             stream);
     cudaDeviceSynchronize();
 
-    // Ignore the compressed video data, and just look at the size in bytes of
-    // each compressed video to compute the fitness scores. This is run on the
+    // Ignore the compressed Video data, and just look at the size in bytes of
+    // each compressed Video to compute the fitness scores. This is run on the
     // GPU (one thread per organism) because that's where the data is.
     unsigned int organisms_per_block = min(MAX_THREADS, population_size);
     unsigned int num_blocks =
