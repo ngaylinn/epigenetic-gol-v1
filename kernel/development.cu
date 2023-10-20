@@ -12,7 +12,7 @@ namespace {
 // ---------------------------------------------------------------------------
 
 // Special value for coordinate transforms, indicating that a Cell is no longer
-// part of the logical space of the board and should not receive any value.
+// part of the logical space of the world and should not receive any value.
 const int OUT_OF_BOUNDS = -1;
 
 // Look up the gene value for a ScalarArgument, taking gene_index and bias
@@ -55,7 +55,7 @@ __device__ void apply_align(
     constexpr int center = (WORLD_SIZE - STAMP_SIZE) / 2;
     constexpr int max_edge = WORLD_SIZE - STAMP_SIZE;
 
-    // Align the Stamp to the center or edge of the GOL board, vertically
+    // Align the Stamp to the center or edge of the GOL world, vertically
     // and / or horizontally.
     row = (v_align == 0 ? min_edge : (v_align == 1 ? center : max_edge));
     col = (h_align == 0 ? min_edge : (h_align == 1 ? center : max_edge));
@@ -216,7 +216,7 @@ __device__ void apply_translate(
 // using argument values found in Genotype. Row and col are modified by this
 // function and represent a point in phenotype space before / after
 // transformation. SIZE is the dimension of the square space to transform.
-// This template has two implementations, one to warp a full GOL board and
+// This template has two implementations, one to warp a full GOL world and
 // another to warp a Stamp.
 template<int SIZE>
 __device__ void apply_transform(

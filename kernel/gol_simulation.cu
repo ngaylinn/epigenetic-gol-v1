@@ -19,7 +19,7 @@ __device__ __host__ Cell get_next_state(
     // Count up neighbors of this Cell that are ALIVE by looking at all the
     // adjacent Cells that are in bounds for this Frame. Bounds checking is
     // done with min / max which is faster than using ifs or ternaries. This
-    // produces characteristic quirky behavior at the edges of the board.
+    // produces characteristic quirky behavior at the edges of the world.
     const int prev_row = max(curr_row - 1, 0);
     const int next_row = min(curr_row + 1, WORLD_SIZE - 1);
     const int prev_col = max(curr_col - 1, 0);

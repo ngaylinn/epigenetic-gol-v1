@@ -5,8 +5,9 @@ Project by Nate Gaylinn:
 
 # Overview
 
-TODO: consistent capitalization for Cell, Frame, Video, FitnessGoal, Stamp, Scalar, Genotype, ALIVE, and
-DEAD.
+TODO: consistent capitalization for Cell, Frame, Video, FitnessGoal, Stamp,
+Scalar, Genotype, ALIVE, and DEAD.
+TODO: Always use "world" instead of "board," "goal" instead of "challenge."
 
 This project is a demonstration of an experimental evolutionary algorithm
 design (tentatively named an "epigenetic algorithm"). It's inspired by a simple

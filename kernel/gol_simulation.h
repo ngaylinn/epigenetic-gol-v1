@@ -1,7 +1,7 @@
 /*
- * Simulate the lifetimes of organisms whose phenotype is a GOL board. This
+ * Simulate the lifetimes of organisms whose phenotype is a GOL world. This
  * module has functions for simulating many organisms simultaneously on the
- * GPU, but also one-off equivalents that run on the CPU. 
+ * GPU, but also one-off equivalents that run on the CPU.
  */
 
 #ifndef __GOL_SIMULATION_H__

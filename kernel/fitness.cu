@@ -53,7 +53,7 @@ __device__ void FitnessObserver<GOAL>::observe(
 template<FitnessGoal GOAL>
 __device__ void FitnessObserver<GOAL>::reduce(Fitness* result) {
     // Add up the values of scratch_a and scratch_b across all threads
-    // (ie, the full GOL board).
+    // (ie, the full GOL world).
     auto reduce = cub::BlockReduce<uint32_t, THREADS_PER_BLOCK>();
     uint32_t sum_a = reduce.Sum(scratch_a);
     // Needed because both calls to Sum share the same workspace memory.

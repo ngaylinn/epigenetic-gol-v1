@@ -35,13 +35,13 @@ class FitnessObserver {
         // them to reflect their goal-specific meanings. This
         // version of update can observe the whole Frame for this step
         // (in global memory, which is relatively expensive) to identify
-        // global patterns within the board.
+        // global patterns within the world.
         __device__ void update(
                 const int& step, const int& row, const int& col,
                 const Frame& frame, uint32_t& scratch_a, uint32_t& scratch_b);
 
         // Same as above, except this version of update can only observe the
-        // region of the GOL board being evaluated (which may be in registers,
+        // region of the GOL world being evaluated (which may be in registers,
         // the fastest GPU memory). This is preferred when global visibiliy
         // isn't needed.
         __device__ void update(
@@ -54,18 +54,18 @@ class FitnessObserver {
                 const uint32_t& sum_a, const uint32_t& sum_b, Fitness* result);
 
     public:
-        // Observe the GOL game board at the given time step and capture relevant
+        // Observe the GOL game world at the given time step and capture relevant
         // data for computing overall fitness of the simulation. Each call will
         // consider CELLS_PER_THREAD Cells in a row, starting from position
         // (row, col). This function is passed both a local and global view of
-        // the GOL board, but only one will be used. This allows working in
+        // the GOL world, but only one will be used. This allows working in
         // registers when possible, which gives a significant performance boost.
         __device__ void observe(
                 const int& step, const int& row, const int& col,
                 const Cell local[CELLS_PER_THREAD], const Frame& global);
 
-        // After observe has been run once for every step and all Cells on the
-        // board, call this function to reduce all the partial fitness data
+        // After observe has been run once for every step and all Cells in the
+        // world, call this function to reduce all the partial fitness data
         // captured into a single score for the entire simulation.
         __device__ void reduce(Fitness* result);
 };
