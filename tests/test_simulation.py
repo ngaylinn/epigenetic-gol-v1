@@ -11,7 +11,7 @@ from kernel import (
     simulate_phenotype,
     FitnessGoal, Simulator,
     NUM_STEPS, WORLD_SIZE)
-from phenotype_program import TestClade
+from evolution import TestClade, NUM_ORGANISM_GENERATIONS
 from tests import test_case
 
 GLIDER = np.array(
@@ -44,16 +44,15 @@ class TestSimulation(test_case.TestCase):
         def single_trial():
             result = {}
             goal = FitnessGoal.STILL_LIFE
-            simulator = Simulator(3, 3, 32)
             clade = TestClade()
-            simulator.populate(clade.serialize())
-            simulations = simulator.simulate_and_record(goal)
+            simulations = clade.evolve_organisms(goal, True)
             # Flatten out the collection of videos orgnanized by species,
             # trial, and organism into a flat list with one video for each
             # individual in the population.
-            result['sims'] = np.reshape(
-                simulations, (-1, NUM_STEPS, WORLD_SIZE, WORLD_SIZE))
-            result['fitness'] = simulator.get_fitness_scores()
+            result['sims'] = simulations.reshape(
+                (-1, NUM_STEPS, WORLD_SIZE, WORLD_SIZE))
+            result['fitness'] = clade.organism_fitness_history.reshape(
+                (-1, NUM_ORGANISM_GENERATIONS))[:, -1]
             return result
         num_trials = 3
         results = [single_trial() for _ in range(num_trials)]
@@ -66,11 +65,9 @@ class TestSimulation(test_case.TestCase):
     def test_gpu_and_cpu_agree(self):
         """The fancy GPU-optimized simulation matches the basic one."""
         goal = FitnessGoal.STILL_LIFE
-        simulator = Simulator(3, 3, 32)
         clade = TestClade()
-        simulator.populate(clade.serialize())
         # Grab just the first video from the GPU (the rest should be the same)
-        gpu_simulation = simulator.simulate_and_record(goal)[0][0][0]
+        gpu_simulation = clade.evolve_organisms(goal, True)[0][0][0]
         # Run the CPU simulation with the same randomly generated phenotype we
         # used on the GPU, but then recompute the rest of the video.
         cpu_simulation = simulate_phenotype(gpu_simulation[0])

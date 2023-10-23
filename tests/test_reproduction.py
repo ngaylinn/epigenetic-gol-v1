@@ -12,9 +12,9 @@ import numpy as np
 import gif_files
 from kernel import (
     breed_population,
-    Cell, GenotypeDType, Simulator,
+    Cell, GenotypeDType,
     CELLS_PER_STAMP, CROSSOVER_RATE, MUTATION_RATE, NUM_GENES, STAMP_SIZE)
-from phenotype_program import TestClade
+from evolution import TestClade
 from tests import test_case
 
 
@@ -47,10 +47,9 @@ class TestReproduction(test_case.TestCase):
     def test_randomize(self):
         """Random genes have the expected distributional properties."""
         num_species, num_trials, num_organisms = 5, 5, 32
-        simulator = Simulator(num_species, num_trials, num_organisms)
-        clade = TestClade(5)
-        simulator.populate(clade.serialize())
-        genotypes = simulator.get_genotypes()
+        clade = TestClade()
+        clade.populate_simulator()
+        genotypes = clade.simulator.get_genotypes()
         # For every trial, look at the genes of all the organisms in that
         # population and make sure they are randomized appropriately.
         for species_index in range(num_species):
@@ -89,10 +88,9 @@ class TestReproduction(test_case.TestCase):
     def test_sample_random_genotypes(self):
         """Collect visualizations of random genotypes to verify manually."""
         num_organisms = 8
-        simulator = Simulator(1, 1, num_organisms)
-        clade = TestClade(1)
-        simulator.populate(clade.serialize())
-        genotypes = simulator.get_genotypes()
+        clade = TestClade()
+        clade.populate_simulator()
+        genotypes = clade.simulator.get_genotypes()
         for organism_index in range(num_organisms):
             visualize_genotype(genotypes[0][0][organism_index])
             path, test_name = self.get_test_data_location()
@@ -105,12 +103,11 @@ class TestReproduction(test_case.TestCase):
         """The same seed produces the same pseudorandom genotypes."""
         def single_trial():
             result = {}
-            simulator = Simulator(5, 5, 32)
-            clade = TestClade(5)
-            simulator.populate(clade.serialize())
-            result['before'] = simulator.get_genotypes()
-            simulator.propagate()
-            result['after'] = simulator.get_genotypes()
+            clade = TestClade()
+            clade.populate_simulator()
+            result['before'] = clade.simulator.get_genotypes()
+            clade.simulator.propagate()
+            result['after'] = clade.simulator.get_genotypes()
             return result
         num_trials = 3
         results = [single_trial() for _ in range(num_trials)]
