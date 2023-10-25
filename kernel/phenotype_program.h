@@ -104,7 +104,7 @@ struct StampArgument {
 // Describes one operation to draw patterns into phenotype, using
 // data drawn from a Genotype.
 struct DrawOperation {
-    // How to combine this with other DrawOperations 
+    // How to combine this with other DrawOperations
     ComposeMode compose_mode = ComposeMode::NONE;
     // What pattern to draw
     StampArgument stamp;
