@@ -80,7 +80,7 @@ struct ScalarArgument {
 
 // Describes coordinate-space transformations used by DrawOperations.
 struct TransformOperation {
-    TransformMode type = TransformMode::NONE;
+    TransformMode transform_mode = TransformMode::NONE;
     ScalarArgument args[MAX_ARGUMENTS] = {};
 };
 

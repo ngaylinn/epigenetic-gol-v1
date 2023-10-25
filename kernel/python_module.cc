@@ -228,7 +228,7 @@ PYBIND11_MODULE(kernel, m) {
     PYBIND11_NUMPY_DTYPE(Genotype, scalar_genes, stamp_genes);
     PYBIND11_NUMPY_DTYPE(ScalarArgument, gene_index, bias, bias_mode);
     PYBIND11_NUMPY_DTYPE(StampArgument, gene_index, bias, bias_mode);
-    PYBIND11_NUMPY_DTYPE(TransformOperation, type, args);
+    PYBIND11_NUMPY_DTYPE(TransformOperation, transform_mode, args);
     PYBIND11_NUMPY_DTYPE(DrawOperation, compose_mode, stamp,
                          global_transforms, stamp_transforms);
     PYBIND11_NUMPY_DTYPE(PhenotypeProgram, draw_ops);

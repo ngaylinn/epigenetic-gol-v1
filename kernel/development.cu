@@ -238,7 +238,7 @@ __device__ void apply_transform<WORLD_SIZE>(
         int& row, int& col) {
     // Apply global transformations. Note that some transformations can be used
     // either globally or locally. They get configured by a template argument.
-    switch (op.type) {
+    switch (op.transform_mode) {
         case TransformMode::ALIGN:
             return apply_align(genotype, op, row, col);
         case TransformMode::ARRAY_1D:
@@ -274,7 +274,7 @@ __device__ void apply_transform<STAMP_SIZE>(
         int& row, int& col) {
     // Only some of the transform operations actually make sense to apply to
     // the Stamp coordinate space. Any others will be ignored.
-    switch (op.type) {
+    switch (op.transform_mode) {
         case TransformMode::CROP:
             return apply_crop<STAMP_SIZE>(genotype, op, row, col);
         case TransformMode::FLIP:
@@ -304,7 +304,7 @@ __device__ void apply_transform_list(
     for (int i = 0; i < MAX_OPERATIONS; i++) {
         // A NONE transform has no effect and indicates the end of this part of
         // the program. Stop processing the transform list.
-        if (transforms[i].type == TransformMode::NONE) {
+        if (transforms[i].transform_mode == TransformMode::NONE) {
             break;
         }
         // If this position has been marked out of bounds by a previous

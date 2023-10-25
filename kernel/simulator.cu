@@ -148,7 +148,7 @@ int main(int argc, char* argv[]) {
     PhenotypeProgram programs[50];
     for (int i = 0; i < 50; i++) {
         programs[i].draw_ops[0].compose_mode = ComposeMode::OR;
-        programs[i].draw_ops[0].global_transforms[0].type =
+        programs[i].draw_ops[0].global_transforms[0].transform_mode =
             TransformMode::TILE;
     }
     simulator.evolve(programs, goal, 200);
