@@ -206,6 +206,7 @@ class Clade:
         for index, program in enumerate(self.programs):
             program.serialize(programs[index])
         self.simulator.populate(programs)
+        return programs
 
 
 class TestClade(Clade):

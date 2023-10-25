@@ -340,7 +340,7 @@ __global__ void EntropyFitnessKernel(
     const int population_index = blockIdx.x * blockDim.x + threadIdx.x;
     if (population_index >= population_size) return;
 
-    // Grab the compressed byte size of the first and last Vrame from the GOL
+    // Grab the compressed byte size of the first and last Frame from the GOL
     // simulation of a single organism.
     const size_t first_frame_size = compressed_bytes[2 * population_index];
     const size_t last_frame_size = compressed_bytes[2 * population_index + 1];

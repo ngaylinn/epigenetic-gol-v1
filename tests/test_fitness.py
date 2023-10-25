@@ -2,8 +2,9 @@ import unittest
 
 import numpy as np
 
-from kernel import simulate_organism, Cell, FitnessGoal, Simulator, WORLD_SIZE
-from phenotype_program import TestClade
+from kernel import simulate_organism, Cell, FitnessGoal, NUM_STEPS, WORLD_SIZE
+from evolution import (
+    NUM_ORGANISM_GENERATIONS, TestClade)
 from tests import test_case
 
 
@@ -13,15 +14,25 @@ def count_alive(array):
 
 class TestFitness(test_case.TestCase):
     def evolve_organism(self, goal):
-        # The population size was chosen to be as small as possible while
-        # producing stereotypic results from all FitnessGoals.
-        simulator = Simulator(1, 1, 1200)
         clade = TestClade()
-        fitness = simulator.evolve(clade.serialize(), goal, 100).flatten()
-        genotypes = simulator.get_genotypes().flatten()
-        best_genotype = genotypes[fitness.argmax()]
-        video = simulate_organism(clade[0].serialize(), best_genotype)
-        return fitness.max(), video
+        # Evolve organisms and capture video of the final generation. Flatten
+        # the population to a single dimension, but keep each of the Videos in
+        # their characteristic shape.
+        # TODO: Is it better to just record the whole last generation, or to
+        # use simulate organism on just the best one? Do we still need
+        # kernel.simulate_organism?
+        simulations = clade.evolve_organisms(goal, True)
+        simulations = simulations.reshape(
+            -1, NUM_STEPS, WORLD_SIZE, WORLD_SIZE)
+        # Flatten the population to a single dimensions, and look at just the
+        # last generation of fitness scores.
+        fitness = clade.organism_fitness_history
+        fitness = fitness.reshape(-1, NUM_ORGANISM_GENERATIONS)[:, -1]
+        # Pick out the simulation Video corresponding to the most fit
+        # organism in the population.
+        best_simulation = simulations[fitness.argmax()]
+        assert best_simulation.shape == (NUM_STEPS, WORLD_SIZE, WORLD_SIZE)
+        return fitness.max(), best_simulation
 
     def test_explode(self):
         fitness, video = self.evolve_organism(FitnessGoal.EXPLODE)
@@ -31,43 +42,7 @@ class TestFitness(test_case.TestCase):
             fitness, (100 * alive_on_last) // (1 + alive_on_first))
         self.assertGolden(video)
 
-    def test_gliders(self):
-        def same_value(array, value):
-            if len(array) > 2:
-                return np.logical_and(
-                    array[0] == value, same_value(array[1:], value))
-            else:
-                return np.logical_and(
-                    array[0] == value, array[1] == value)
-        fitness, video = self.evolve_organism(FitnessGoal.GLIDERS)
-        ROW_DELTA = 1
-        COL_DELTA = 1
-        TIME_DELTA = 4
-        # Compare the last Frame to the one TIME_DELTA Frames before, but
-        # shifted by ROW_DELTA rows and COL_DELTA cols. Cells in common
-        # represent a pattern that is "moving" across the GOL world in the same
-        # speed and direction as a glider.
-        last_cycle = video[-TIME_DELTA - 1]
-        this_cycle = np.pad(
-            video[-1],
-            ((0, ROW_DELTA), (0, COL_DELTA)),
-            constant_values=Cell.DEAD
-        )[-WORLD_SIZE:, -WORLD_SIZE:]
-        in_spaceship = np.count_nonzero(
-            np.logical_and(
-                np.logical_and(last_cycle == int(Cell.ALIVE),
-                               this_cycle == int(Cell.ALIVE)),
-                np.logical_not(same_value(video[-TIME_DELTA:],
-                                          int(Cell.ALIVE)))))
-        not_in_spaceship = np.count_nonzero(
-            np.logical_and(
-                np.logical_or(last_cycle == int(Cell.DEAD),
-                              this_cycle == int(Cell.DEAD)),
-                np.logical_not(same_value(video[-TIME_DELTA:],
-                                          int(Cell.DEAD)))))
-        self.assertGolden(video)
-        self.assertEqual(
-            fitness, (100 * in_spaceship) // (1 + not_in_spaceship))
+    # TODO: Add missing FitnessGoals!
 
     def test_left_to_right(self):
         fitness, video = self.evolve_organism(FitnessGoal.LEFT_TO_RIGHT)

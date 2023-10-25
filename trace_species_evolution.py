@@ -12,7 +12,7 @@ import numpy as np
 
 from evolution import NUM_SPECIES, NUM_TRIALS, Clade, compute_species_fitness
 import gif_files
-from kernel import Cell, FitnessGoal, WORLD_SIZE
+from kernel import FitnessGoal
 from phenotype_program import Constraints, CROSSOVER_RATE
 
 # This script only looks at the first few generations of species.

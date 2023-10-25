@@ -52,8 +52,7 @@ def estimate_remaining_time():
     result = 0
     # Look at the experiments with the most completed trials first, since they
     # may have historical runtime data from this machine.
-    experiment_list = sorted(experiment_list, reverse=True)
-    for experiment in experiment_list:
+    for experiment in sorted(experiment_list, reverse=True):
         # If the current experiment has historical data, use that to estimate
         # how long it takes to run the remaining trials of this experiment.
         # This is the most accurate, since different PhenotypePrograms and

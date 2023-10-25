@@ -4,11 +4,12 @@ import unittest
 
 import numpy as np
 
-import experiments
+from evolution import Clade
+from experiments import NUM_SPECIES
 from kernel import BiasMode, GenotypeDType
 from phenotype_program import (
     crossover_operation_lists,
-    Clade, Constraints, PhenotypeProgram)
+    Constraints, PhenotypeProgram)
 from tests import test_case
 
 
@@ -163,7 +164,7 @@ class TestPhenotypeProgram(test_case.TestCase):
 
     def test_initial_population(self):
         constraints = Constraints(True, True, True)
-        clade = Clade(experiments.NUM_SPECIES, constraints).serialize()
+        clade = Clade(constraints).populate_simulator()
         progenitor = clade[0]
         diffs_per_species = []
         for species in clade[1:]:
@@ -171,7 +172,7 @@ class TestPhenotypeProgram(test_case.TestCase):
         num_mutants = np.count_nonzero(diffs_per_species)
         # 80% of the population is different from the progenitor.
         self.assertProportional(
-            0.8 * experiments.NUM_SPECIES, num_mutants, delta=0.05)
+            0.8 * NUM_SPECIES, num_mutants, delta=0.05)
         # On average, each species has two mutations.
         self.assertAlmostEqual(np.mean(diffs_per_species), 2.0, delta=0.1)
         # No species has more than 6 mutations.
