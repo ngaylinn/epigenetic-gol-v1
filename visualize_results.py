@@ -12,7 +12,8 @@ independently is to iterate on how experiment data gets visualized without
 re-running the experiments (which can be quite time consuming).
 """
 
-import argparse
+from argparse import ArgumentParser
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,11 +21,12 @@ import pandas as pd
 import seaborn as sns
 
 from evolution import (
-    NUM_TRIALS, NUM_ORGANISMS, NUM_SPECIES_GENERATIONS,
+    Clade, NUM_TRIALS, NUM_ORGANISMS, NUM_SPECIES_GENERATIONS,
     NUM_ORGANISM_GENERATIONS)
 from experiments import experiment_list
 import gif_files
-from kernel import simulate_organism, FitnessGoal, Simulator
+from kernel import (
+    simulate_organism, FitnessGoal, PhenotypeProgramDType, Simulator)
 
 
 # Used to transform experiment data from a wide-format (one column for each
@@ -42,21 +44,40 @@ ORGANISM_INDEX_COLUMNS = (
     np.tile(np.arange(NUM_ORGANISM_GENERATIONS), NUM_TRIALS))
 
 
-def render_random_populations(species_list):
+def render_random_populations(programs):
     """Record simulation Videos from random, unevolved populations.
 
-    This returns NUM_ORGANISMS simulations for each species in species_list.
+    This returns NUM_ORGANISMS simulations for each PhenotypeProgram in
+    programs.
     """
     # Simulate just one trial with the given set of species.
-    simulator = Simulator(len(species_list), 1, NUM_ORGANISMS)
-    simulator.populate(np.array([
-        species_data.phenotype_program.serialize()
-        for species_data in species_list]))
+    simulator = Simulator(len(programs), 1, NUM_ORGANISMS)
+    simulator.populate(programs)
     # TODO: It would be slightly nicer use a no-op FitnessGoal, since the
     # fitness function doesn't actually contribute to the result.
     simulations = simulator.simulate_and_record(FitnessGoal.STILL_LIFE)
     # Get rid of the pointless trial index, since we only ran one trial.
     return simulations[:, 0]
+
+
+def visualize_random_populations(videos, title, filename):
+    """Export a collage image of random, unevolved populations.
+
+    This chooses a set of 50 images from the first Frames in videos and
+    composes them into a single image.
+    """
+    fig = plt.figure(title, figsize=(20, 10))
+    fig.suptitle(title)
+    if len(videos) > 50:
+        videos = np.random.choice(videos, [50], replace=False)
+    for index, video in enumerate(videos):
+        axis = fig.add_subplot(5, 10, index + 1)
+        axis.tick_params(bottom=False, left=False, labelbottom=False,
+                         labelleft=False)
+        gif_files.add_simulation_data_to_figure(video[0], fig, axis)
+    fig.savefig(filename)
+    plt.close()
+
 
 
 def visualize_species_data(species_data, species_path):
@@ -71,7 +92,7 @@ def visualize_species_data(species_data, species_path):
         data=organism_fitness_by_trial, kind='line',
         x='Generation', y='Fitness', hue='Trial')
     fig.set(title='Organism Fitness by Trial')
-    fig.savefig(species_path.joinpath('organism_fitness.svg'))
+    fig.savefig(species_path.joinpath('organism_fitness.png'))
     plt.close()
 
     # Save this species' PhenotypeProgram in human and Python readable formats.
@@ -136,13 +157,16 @@ def visualize_experiment_data(experiment):
         data=species_fitness_by_trial, kind='line',
         x='Generation', y='Fitness', hue='Trial')
     fig.set(title='Species Fitness by Trial')
-    fig.savefig(experiment.path.joinpath('species_fitness.svg'))
+    fig.savefig(experiment.path.joinpath('species_fitness.png'))
     plt.close()
 
     # Summarize experiment results for the best species evolved in each trial,
     # including a sample initial population.
     random_populations = render_random_populations(
-        experiment_data.best_species_per_trial)
+        np.fromiter(
+            (species_data.phenotype_program.serialize()
+             for species_data in experiment_data.best_species_per_trial),
+            dtype=PhenotypeProgramDType))
     best_fitness = 0
     best_simulation = None
     for trial in range(experiment.trial + 1):
@@ -171,17 +195,10 @@ def visualize_experiment_data(experiment):
         # Visualize a random population of organisms generated for this species
         # by putting the first Frame from all NUM_ORGANISMS Videos into a
         # single image.
-        title = (
-            f'Random Initial Population ({experiment.name}, Trial {trial:d})')
-        fig = plt.figure(title, figsize=(20, 10))
-        fig.suptitle(title)
-        for index, video in enumerate(random_populations[trial]):
-            axis = fig.add_subplot(5, 10, index + 1)
-            axis.tick_params(bottom=False, left=False, labelbottom=False,
-                             labelleft=False)
-            gif_files.add_simulation_data_to_figure(video[0], fig, axis)
-        fig.savefig(species_path.joinpath('random_initial_population.svg'))
-        plt.close()
+        visualize_random_populations(
+            random_populations[trial],
+            f'Random Initial Population ({experiment.name}, Trial {trial:d})',
+            species_path.joinpath('random_initial_population.png'))
 
     gif_files.save_simulation_data_as_image(
         best_simulation,
@@ -197,9 +214,9 @@ def visualize_cross_experiment_comparisons():
         all_experiment_data = pd.concat((all_experiment_data, pd.DataFrame({
             'FitnessGoal': experiment.fitness_goal,
             'FitnessScore': this_experiment_data.all_trial_species_fitness[:, -1],
-            'AllowBias': experiment.constraints.allow_bias,
-            'AllowComposition': experiment.constraints.allow_composition,
-            'AllowStampTransforms': experiment.constraints.allow_stamp_transforms,
+            'Bias': experiment.constraints.allow_bias,
+            'Composition': experiment.constraints.allow_composition,
+            'StampTransforms': experiment.constraints.allow_stamp_transforms,
         })))
     # Normalize fitness scores across all FitnessGoals.
     per_goal_max_scores = {
@@ -213,23 +230,36 @@ def visualize_cross_experiment_comparisons():
     # Generate charts summarizing the impact of setting Constraints in
     # different ways.
     sns.catplot(data=all_experiment_data, col='FitnessGoal', y='FitnessScore',
-                hue='AllowBias', orient='v', dodge=True, col_wrap=4)
-    plt.savefig('output/experiments/bias.svg')
+                hue='Bias', orient='v', dodge=True, col_wrap=3)
+    plt.savefig('output/experiments/bias.png')
     plt.close()
     sns.catplot(data=all_experiment_data, col='FitnessGoal', y='FitnessScore',
-                hue='AllowComposition', orient='v', dodge=True, col_wrap=4)
-    plt.savefig('output/experiments/composition.svg')
+                hue='Composition', orient='v', dodge=True, col_wrap=3)
+    plt.savefig('output/experiments/composition.png')
     plt.close()
     sns.catplot(data=all_experiment_data, col='FitnessGoal', y='FitnessScore',
-                hue='AllowStampTransforms', orient='v', dodge=True, col_wrap=4)
-    plt.savefig('output/experiments/stamp_transforms.svg')
+                hue='StampTransforms', orient='v', dodge=True, col_wrap=3)
+    plt.savefig('output/experiments/stamp_transforms.png')
     plt.close()
+
+
+def visualize_species_range():
+    clade = Clade()
+    clade.randomize_species()
+    videos = render_random_populations(
+        np.fromiter(
+            (program.serialize() for program in clade.programs),
+            dtype=PhenotypeProgramDType))
+    title = 'Random Initial Population from Random Species'
+    filename = 'output/random_initial_population.png'
+    if not Path(filename).exists():
+        visualize_random_populations(videos, title, filename)
 
 
 def visualize_results():
     """Look for new experiment data and generate visualizations for it."""
     # Parse command line arguments.
-    parser = argparse.ArgumentParser()
+    parser = ArgumentParser()
     parser.add_argument(
         '--rebuild', action='store_true',
         help='Regenerate all outputs, instead of just the outdated ones')
@@ -247,7 +277,7 @@ def visualize_results():
         # Check for one of the experiment data visualizations and find its last
         # modified time. This assumes all visualizations for an experiment are
         # generated at once, and can't be out of sync with each other.
-        summary_path = experiment.state_path.with_name('species_fitness.svg')
+        summary_path = experiment.state_path.with_name('species_fitness.png')
         if summary_path.exists():
             summary_update_time = summary_path.stat().st_mtime
         else:
@@ -265,6 +295,8 @@ def visualize_results():
     # and don't bother summarizing cross-experiment comparisons.
     if all(experiment.has_started() for experiment in experiment_list):
         visualize_cross_experiment_comparisons()
+
+    visualize_species_range()
 
 
 if __name__ == '__main__':
