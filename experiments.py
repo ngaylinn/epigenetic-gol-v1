@@ -16,10 +16,9 @@ visualize_results script.
 import functools
 import pathlib
 import pickle
-import random
+import time
 
 import numpy as np
-import time
 
 from evolution import (
     NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS,
