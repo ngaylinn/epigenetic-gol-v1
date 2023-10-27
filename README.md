@@ -360,8 +360,8 @@ align tree structures and produce hybrid trees (breeding for
 Since the concept of an epigenetic algorithm is novel, and it's not yet
 entirely clear what it's good for or how to implement well, this project
 explores a few variations of the algorithm to see what's important. These
-variations are managed using the [`Constraint`s
-dataclass](phenotype_program.py#L187).
+variations are managed using the [`Constraints`](phenotype_program.py#L187)
+dataclass.
 It consists of three independent boolean variables: whether to use gene bias /
 simulated canalization or not, whether to allow multiple draw operations or
 just one, and whether to allow transformations on `Stamp` genes or only global
