@@ -15,6 +15,7 @@ from experiments import NUM_TRIALS, experiment_list
 
 user_requested_abort = False
 
+
 def handle_sigint(sig, frame):
     """Allow the user to abort this script, gracefully or abruptly."""
     global user_requested_abort
@@ -104,12 +105,12 @@ def run_experiments():
         print_status_summary(completed_trials, elapsed_secs)
 
         # Summarize the results from this trial in a human-friendly form. This
-        # is done by launching a separate script in a separate process. The
-        # main reason for this is because matplotlib is prone to memory leaks
-        # and isn't good for use in a long-running process like this one. In
-        # theory, it also allows both scripts to run in parallel to save time
-        # (though the Python GIL means this is not guaranteed).
-        subprocess.Popen(['python3', 'visualize_results.py'])
+        # is done in a separate process because matplotlib is prone to memory
+        # leaks and isn't good for use in a long-running process. In theory,
+        # it could run in parallel with this script, but contention for the
+        # Python GIL and GPU resources makes that tricky, so just wait for the
+        # command to complete before resuming.
+        subprocess.run(['python3', 'visualize_results.py'])
 
 
 if __name__ == '__main__':

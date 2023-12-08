@@ -159,20 +159,31 @@ class Clade:
             progress_bar.update()
         progress_bar.close()
 
-    def randomize_species(self):
-        """Generate a random population of species to evolve.
+    @staticmethod
+    def make_random_species(innovation_counter=None, constraints=None):
+        """Generate a random population of species without a Clade object.
 
         This works by starting with a minimal program (just a Stamp with no
         bias or transforms), then systematically generating a population of
         mutants from that individual to cover a diverse range.
         """
+        if innovation_counter is None:
+            innovation_counter = itertools.count()
+        if constraints is None:
+            constraints = Constraints(True, True, True)
         minimal_program = PhenotypeProgram()
-        minimal_program.add_draw(self.innovation_counter)
-        self.programs = [minimal_program]
-        self.programs.extend(
+        minimal_program.add_draw(innovation_counter)
+        programs = [minimal_program]
+        programs.extend(
             [deepcopy(minimal_program) for _ in range(1, NUM_SPECIES)])
-        for program in self.programs:
-            program.randomize(self.innovation_counter, self.constraints)
+        for program in programs:
+            program.randomize(innovation_counter, constraints)
+        return programs
+
+    def randomize_species(self):
+        """Generate a random population of species to evolve."""
+        self.programs = Clade.make_random_species(
+            self.innovation_counter, self.constraints)
 
     def propagate_species(self, fitness_scores):
         """Make a new generation of species derived from the previous one.
@@ -211,7 +222,8 @@ class Clade:
 
 class TestClade(Clade):
     """A clade with default PhenotypePrograms, for testing."""
-    def populate(self):
+    def __init__(self):
+        super().__init__(seed=42)
         test_program = PhenotypeProgram()
         draw_op = test_program.add_draw(self.innovation_counter)
         transform = draw_op.add_global_transform(self.innovation_counter)

@@ -41,26 +41,21 @@ NUM_SAMPLES = 3
 # Remember the last HISTORY_SIZE benchmarks for comparison.
 HISTORY_SIZE = 5
 
-# For testing, just make NUM_SPECIES copies of the same PhenotypeProgram.
-CLADE = TestClade(NUM_SPECIES, 42)
-
 
 def sample_performance():
     """Measure the performance of running this project's inner loop once."""
     # Don't count the one-time initialization in our measurement.
-    simulator = Simulator(NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
     goal = FitnessGoal.STILL_LIFE
 
     start = time.perf_counter()
-    # TODO: Should this just call evolve()? Or should we keep it like this to
-    # include the cost of get_fitness_scores() in the benchmark?
-    CLADE.populate_simulator()
+    clade = TestClade()
+    clade.populate_simulator()
     for _ in range(NUM_GENERATIONS - 1):
-        CLADE.simulator.simulate(goal)
-        CLADE.simulator.get_fitness_scores()
-        CLADE.simulator.propagate()
-    CLADE.simulator.simulate(goal)
-    fitness = simulator.get_fitness_scores()
+        clade.simulator.simulate(goal)
+        clade.simulator.get_fitness_scores()
+        clade.simulator.propagate()
+    clade.simulator.simulate(goal)
+    fitness = clade.simulator.get_fitness_scores()
     elapsed = time.perf_counter() - start
     return fitness, elapsed
 
@@ -107,7 +102,7 @@ def collect_samples():
         performance_samples.append(klps)
         # Show results by overwriting the message from before, adding
         # whitespace to the end if necessary to erase pre_msg from the screen.
-        post_msg = f' - Sample {sample}: {elapsed:.2f}s {klps:.2f}klps{warning}'
+        post_msg = f' - Sample {sample}: {elapsed:.2f}s {klps:.2f}klps'
         padding = max(0, len(pre_msg) - len(post_msg) - len(warning)) * ' '
         print(f'\r{post_msg}{warning}{padding}')
 

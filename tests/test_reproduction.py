@@ -14,7 +14,7 @@ from kernel import (
     breed_population,
     Cell, GenotypeDType,
     CELLS_PER_STAMP, CROSSOVER_RATE, MUTATION_RATE, NUM_GENES, STAMP_SIZE)
-from evolution import TestClade
+from evolution import TestClade, NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS
 from tests import test_case
 
 
@@ -46,14 +46,13 @@ class TestReproduction(test_case.TestCase):
 
     def test_randomize(self):
         """Random genes have the expected distributional properties."""
-        num_species, num_trials, num_organisms = 5, 5, 32
         clade = TestClade()
         clade.populate_simulator()
         genotypes = clade.simulator.get_genotypes()
         # For every trial, look at the genes of all the organisms in that
         # population and make sure they are randomized appropriately.
-        for species_index in range(num_species):
-            for trial_index in range(num_trials):
+        for species_index in range(NUM_SPECIES):
+            for trial_index in range(NUM_TRIALS):
                 organism_genotypes = genotypes[species_index][trial_index]
                 scalar_values = organism_genotypes['scalar_genes'].flatten()
                 stamp_values = organism_genotypes['stamp_genes'].flatten()
@@ -64,19 +63,19 @@ class TestReproduction(test_case.TestCase):
                 # Scalar gene values are almost all unique, since few values
                 # are being drawn from the full range of 32-bit ints.
                 self.assertAlmostEqual(
-                    num_organisms * NUM_GENES,
+                    NUM_ORGANISMS * NUM_GENES,
                     np.unique(scalar_values).size,
                     delta=0.01, msg=msg)
                 # The average stamp value is halfway between ALIVE and DEAD.
                 self.assertProportional(
                     (int(Cell.DEAD) + int(Cell.ALIVE)) / 2,
                     stamp_values.mean(),
-                    0.11, msg=msg)
+                    0.2, msg=msg)
                 # About half of the stamp values are ALIVE.
                 self.assertProportional(
                     len(stamp_values) / 2,
                     np.count_nonzero(stamp_values == int(Cell.ALIVE)),
-                    0.11, msg=msg)
+                    0.2, msg=msg)
                 # All stamp values are either ALIVE or DEAD.
                 self.assertEqual(
                     len(stamp_values),

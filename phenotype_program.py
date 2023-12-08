@@ -250,39 +250,39 @@ class TransformOperation:
 
     Each TransformOperation can be thought of as a function that warps the
     coordinate system of the phenotype globally or for a Stamp. There are
-    several different possible transforms, identified by type, each of which
-    takes one or two Arguments.
+    several different possible transforms, identified by transform_mode, each
+    of which takes one or two Arguments.
 
     Attributes
     ----------
     inno : int
         The innovation number for this TransformOperation, indicating the
         mutation where it was first added to the PhenotypeProgram.
-    type : kernel.TransformMode
+    transform_mode : kernel.TransformMode
         Which transformation to apply.
     args : list of Argument
         The arguments bindings passed to the transformation apply function.
     """
-    def __init__(self, inno, transform_type=None, transform_args=None,
+    def __init__(self, inno, transform_mode=None, transform_args=None,
                  type_options=None):
         self.inno = inno
-        # Construct from existing type and args if given.
-        if all((transform_type, transform_args)):
-            self.type = transform_type
+        # Construct from existing transform_mode and args if given.
+        if all((transform_mode, transform_args)):
+            self.transform_mode = transform_mode
             self.args = transform_args
-        # Otherwise, set type and args randomly.
+        # Otherwise, set transform_mode and args randomly.
         else:
             # If type_options was specified, randomly choose one of those. This
             # is used to restrict to just the TransformOperations that apply
             # globally or to Stamp genes.
             if type_options:
-                self.type = random.choice(type_options)
+                self.transform_mode = random.choice(type_options)
             # Otherwise, just pick a sensible default.
             else:
-                self.type = TransformMode.TRANSLATE
-            # Args always starts with default settings, even when the type is
-            # randomized. This encourages simple organisms by default, with
-            # greater complexity added via mutations.
+                self.transform_mode = TransformMode.TRANSLATE
+            # Args always starts with default settings, even when the
+            # transform_mode is randomized. This encourages simple organisms by
+            # default, with greater complexity added via mutations.
             self.args = [Argument() for _ in range(MAX_ARGUMENTS)]
 
     def crossover(self, other):
@@ -290,10 +290,10 @@ class TransformOperation:
         # Double check that the alignment process worked and both
         # TransformOperations arose from the same initial mutation.
         assert self.inno == other.inno
-        # Randomly choose type and arg values from either parent.
+        # Randomly choose transform_mode and arg values from either parent.
         return TransformOperation(
             self.inno,
-            random.choice((self.type, other.type)),
+            random.choice((self.transform_mode, other.transform_mode)),
             [random.choice((arg_a, arg_b))
              for arg_a, arg_b in zip(self.args, other.args)])
 
@@ -306,7 +306,7 @@ class TransformOperation:
         may be chosen at random from the evolved gene values.
         """
         if coin_flip(mutation_rate):
-            self.type = random.choice(type_options)
+            self.transform_mode = random.choice(type_options)
         for arg in self.args:
             # Select a gene value from the prior generation used for this
             # Argument to use as bias. The mode of gene values from the last
@@ -323,7 +323,7 @@ class TransformOperation:
 
     def serialize(self, output_array):
         """Populate output_array with the data from this object."""
-        output_array['type'] = self.type
+        output_array['transform_mode'] = self.transform_mode
         for index, arg in enumerate(self.args):
             arg.serialize(output_array['args'][index])
 
@@ -333,7 +333,7 @@ class TransformOperation:
             if arg.bias_mode == BiasMode.FIXED_VALUE
             else f'{arg.gene_index}'
             for arg in self.args])
-        return f'{self.type.name}{{{self.inno}}}({args})'
+        return f'{self.transform_mode.name}{{{self.inno}}}({args})'
 
 
 class DrawOperation:
@@ -477,16 +477,16 @@ class DrawOperation:
     def randomize(self, innovation_counter, constraints):
         """Randomize this Operation for use in an initial population."""
         self.stamp.gene_index = random.randrange(NUM_GENES)
-        transform_type = random.choice(GLOBAL_TRANSFORM_OPS + [None])
-        # Maybe randomly add one transform of each type, if allowed.
-        if transform_type is not None:
+        transform_mode = random.choice(GLOBAL_TRANSFORM_OPS + [None])
+        # Maybe randomly add one transform of each transform_mode, if allowed.
+        if transform_mode is not None:
             transform = self.add_global_transform(innovation_counter)
-            transform.type = transform_type
+            transform.transform_mode = transform_mode
         if constraints.allow_stamp_transforms:
-            transform_type = random.choice(STAMP_TRANSFORM_OPS + [None])
-            if transform_type is not None:
+            transform_mode = random.choice(STAMP_TRANSFORM_OPS + [None])
+            if transform_mode is not None:
                 transform = self.add_stamp_transform(innovation_counter)
-                transform.type = transform_type
+                transform.transform_mode = transform_mode
         # Randomize any transforms that got added.
         for transform in self.global_transforms:
             transform.randomize()

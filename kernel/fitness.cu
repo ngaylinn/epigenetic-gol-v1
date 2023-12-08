@@ -403,7 +403,6 @@ void compute_entropy(
     // Compress samples from every organism of every species in a single batch.
     DeviceData<unsigned char> d_temp(temp_bytes);
     cudaStream_t stream;
-    cudaStreamCreate(&stream);
     nvcompStatus_t status = nvcompBatchedGdeflateCompressAsync(
             d_uncompressed_ptrs,
             d_uncompressed_bytes,
@@ -414,7 +413,7 @@ void compute_entropy(
             d_compressed_ptrs,
             d_compressed_bytes,
             options,
-            stream);
+            0);
     cudaDeviceSynchronize();
 
     // Ignore the compressed Video data, and just look at the size in bytes of

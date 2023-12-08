@@ -79,7 +79,6 @@ def visualize_random_populations(videos, title, filename):
     plt.close()
 
 
-
 def visualize_species_data(species_data, species_path):
     """Summarize the results for a single evolved species."""
     # Save a chart of organism fitness across all trials of this species.
@@ -230,29 +229,28 @@ def visualize_cross_experiment_comparisons():
     # Generate charts summarizing the impact of setting Constraints in
     # different ways.
     sns.catplot(data=all_experiment_data, col='FitnessGoal', y='FitnessScore',
-                hue='Bias', orient='v', dodge=True, col_wrap=3)
+                hue='Bias', orient='v', dodge=True, col_wrap=4)
     plt.savefig('output/experiments/bias.png')
     plt.close()
     sns.catplot(data=all_experiment_data, col='FitnessGoal', y='FitnessScore',
-                hue='Composition', orient='v', dodge=True, col_wrap=3)
+                hue='Composition', orient='v', dodge=True, col_wrap=4)
     plt.savefig('output/experiments/composition.png')
     plt.close()
     sns.catplot(data=all_experiment_data, col='FitnessGoal', y='FitnessScore',
-                hue='StampTransforms', orient='v', dodge=True, col_wrap=3)
+                hue='StampTransforms', orient='v', dodge=True, col_wrap=4)
     plt.savefig('output/experiments/stamp_transforms.png')
     plt.close()
 
 
 def visualize_species_range():
-    clade = Clade()
-    clade.randomize_species()
-    videos = render_random_populations(
-        np.fromiter(
-            (program.serialize() for program in clade.programs),
-            dtype=PhenotypeProgramDType))
-    title = 'Random Initial Population from Random Species'
     filename = 'output/random_initial_population.png'
     if not Path(filename).exists():
+        programs = Clade.make_random_species()
+        videos = render_random_populations(
+            np.fromiter(
+                (program.serialize() for program in programs),
+                dtype=PhenotypeProgramDType))
+        title = 'Random Initial Population from Random Species'
         visualize_random_populations(videos, title, filename)
 
 

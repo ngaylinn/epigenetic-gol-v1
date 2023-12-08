@@ -50,6 +50,11 @@ Simulator::Simulator(
       num_trials(num_trials),
       num_organisms(num_organisms),
       size(num_species * num_trials * num_organisms) {
+    // The Simulator class is meant to take full control over the GPU, and is
+    // often used in long-running jobs. Resetting the GPU device each time a
+    // Simulator is constructed will allow graceful recovery from errors,
+    // inconsistencies, and memory leaks.
+    cudaDeviceReset();
     d = new DeviceAllocations(num_species, size);
     // Normally the caller would seed the Simulator manually, but convenience
     // and safety, make sure the RNGs always get initialized to SOMETHING.
@@ -58,6 +63,9 @@ Simulator::Simulator(
 
 Simulator::~Simulator() {
     delete d;
+    // A full reset should be redundant, but do it anyway just to ensure an
+    // error in this run won't affect future runs.
+    cudaDeviceReset();
 }
 
 

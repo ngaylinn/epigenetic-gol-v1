@@ -143,13 +143,15 @@ class TestPhenotypeProgram(test_case.TestCase):
             })
 
     def test_crossover_one_divergent_operation(self):
-        # When the sequences differ at more than one position, the result
-        # should consider crossover with and without both single-parent values.
+        # When the sequences are completely disjoint, crossover should pick one
+        # of the two or concatenate them.
         self.assertEqual(
             all_possible_crossovers([0], [1]),
             {
                 (0,),
                 (1,),
+                (0, 1),
+                (1, 0),
             })
 
     def test_crossover_all_divergent_operations(self):
@@ -164,19 +166,21 @@ class TestPhenotypeProgram(test_case.TestCase):
 
     def test_initial_population(self):
         constraints = Constraints(True, True, True)
-        clade = Clade(constraints).populate_simulator()
-        progenitor = clade[0]
+        clade = Clade(constraints)
+        clade.randomize_species()
+        programs = clade.populate_simulator()
+        progenitor = programs[0]
         diffs_per_species = []
-        for species in clade[1:]:
+        for species in programs[1:]:
             diffs_per_species.append(count_diffs(species, progenitor))
         num_mutants = np.count_nonzero(diffs_per_species)
-        # 80% of the population is different from the progenitor.
+        # Every species derived from the progenitor has some mutation.
         self.assertProportional(
-            0.8 * NUM_SPECIES, num_mutants, delta=0.05)
-        # On average, each species has two mutations.
-        self.assertAlmostEqual(np.mean(diffs_per_species), 2.0, delta=0.1)
-        # No species has more than 6 mutations.
-        self.assertEqual(np.max(diffs_per_species), 6)
+            NUM_SPECIES - 1, num_mutants, delta=0.05)
+        # On average, each species has ~10 mutations.
+        self.assertAlmostEqual(np.mean(diffs_per_species), 10.2, delta=0.1)
+        # No species has more than 14 mutations.
+        self.assertEqual(np.max(diffs_per_species), 14)
 
     def test_constraints_allow_composition(self):
         innovation_counter = itertools.count()

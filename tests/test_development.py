@@ -87,16 +87,16 @@ def run_test_program(prototype):
         draw_op.stamp.bias_mode = BiasMode.FIXED_VALUE
         draw_op.stamp.bias = stamp
 
-        for (transform_type, transform_args) in global_transforms:
+        for (transform_mode, transform_args) in global_transforms:
             transform = draw_op.add_global_transform(innovation_counter)
-            transform.type = transform_type
+            transform.transform_mode = transform_mode
             for index, arg in enumerate(transform_args):
                 transform.args[index].bias_mode = BiasMode.FIXED_VALUE
                 transform.args[index].bias = arg
 
-        for (transform_type, transform_args) in stamp_transforms:
+        for (transform_mode, transform_args) in stamp_transforms:
             transform = draw_op.add_stamp_transform(innovation_counter)
-            transform.type = transform_type
+            transform.transform_mode = transform_mode
             for index, arg in enumerate(transform_args):
                 transform.args[index].bias_mode = BiasMode.FIXED_VALUE
                 transform.args[index].bias = arg
