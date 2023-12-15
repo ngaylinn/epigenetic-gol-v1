@@ -206,8 +206,7 @@ __device__ void FitnessObserver<FitnessGoal::SYMMETRY>::finalize(
 namespace {
 template<int CYCLE_LENGTH>
 __device__ void update_cycle(
-        const int& step, const int& row, const int& col, const Cell& cell,
-        uint32_t& history, uint32_t& cycling) {
+        const int& step, const Cell& cell, uint32_t& history, uint32_t& cycling) {
     // How many times must the cycle repeat in order to count it?
     constexpr int NUM_ITERATIONS = 4;
     // A bitmask to capture the last CYCLE_LENGTH bits.
@@ -249,9 +248,9 @@ __device__ void update_cycle(
 
 template<>
 __device__ void FitnessObserver<FitnessGoal::THREE_CYCLE>::update(
-        const int& step, const int& row, const int& col, const Cell& cell,
+        const int& step, const int&, const int&, const Cell& cell,
         uint32_t& history, uint32_t& cycling) {
-    update_cycle<3>(step, row, col, cell, history, cycling);
+    update_cycle<3>(step, cell, history, cycling);
 }
 
 template<>
@@ -269,9 +268,9 @@ __device__ void FitnessObserver<FitnessGoal::THREE_CYCLE>::finalize(
 
 template<>
 __device__ void FitnessObserver<FitnessGoal::TWO_CYCLE>::update(
-        const int& step, const int& row, const int& col, const Cell& cell,
+        const int& step, const int&, const int&, const Cell& cell,
         uint32_t& history, uint32_t& cycling) {
-    update_cycle<2>(step, row, col, cell, history, cycling);
+    update_cycle<2>(step, cell, history, cycling);
 }
 
 template<>
@@ -375,7 +374,6 @@ void compute_entropy(
     void* h_uncompressed_ptrs[num_samples];
     void* h_compressed_ptrs[num_samples];
     size_t h_uncompressed_bytes[num_samples];
-    size_t h_compressed_bytes[num_samples];
     for (int i = 0; i < population_size; i++) {
         // Convert the single population index into indexes for the two samples
         // for each individual in the population.
@@ -402,7 +400,6 @@ void compute_entropy(
 
     // Compress samples from every organism of every species in a single batch.
     DeviceData<unsigned char> d_temp(temp_bytes);
-    cudaStream_t stream;
     nvcompStatus_t status = nvcompBatchedGdeflateCompressAsync(
             d_uncompressed_ptrs,
             d_uncompressed_bytes,
