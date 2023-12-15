@@ -14,7 +14,7 @@ from kernel import (
     breed_population,
     Cell, GenotypeDType,
     CELLS_PER_STAMP, CROSSOVER_RATE, MUTATION_RATE, NUM_GENES, STAMP_SIZE)
-from evolution import TestClade, NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS
+from evolution import TestClade, NUM_TRIALS, NUM_ORGANISMS
 from tests import test_case
 
 
@@ -51,38 +51,37 @@ class TestReproduction(test_case.TestCase):
         genotypes = clade.simulator.get_genotypes()
         # For every trial, look at the genes of all the organisms in that
         # population and make sure they are randomized appropriately.
-        for species_index in range(NUM_SPECIES):
-            for trial_index in range(NUM_TRIALS):
-                organism_genotypes = genotypes[species_index][trial_index]
-                scalar_values = organism_genotypes['scalar_genes'].flatten()
-                stamp_values = organism_genotypes['stamp_genes'].flatten()
-                msg = f'species {species_index}, trial {trial_index}'
-                # Scalar genes are 50% of their max value, on average.
-                self.assertProportional(
-                    1 << 31, scalar_values.mean(), delta=0.11, msg=msg)
-                # Scalar gene values are almost all unique, since few values
-                # are being drawn from the full range of 32-bit ints.
-                self.assertAlmostEqual(
-                    NUM_ORGANISMS * NUM_GENES,
-                    np.unique(scalar_values).size,
-                    delta=0.01, msg=msg)
-                # The average stamp value is halfway between ALIVE and DEAD.
-                self.assertProportional(
-                    (int(Cell.DEAD) + int(Cell.ALIVE)) / 2,
-                    stamp_values.mean(),
-                    0.2, msg=msg)
-                # About half of the stamp values are ALIVE.
-                self.assertProportional(
-                    len(stamp_values) / 2,
-                    np.count_nonzero(stamp_values == int(Cell.ALIVE)),
-                    0.2, msg=msg)
-                # All stamp values are either ALIVE or DEAD.
-                self.assertEqual(
-                    len(stamp_values),
-                    np.count_nonzero(
-                        np.logical_or(
-                            stamp_values == int(Cell.ALIVE),
-                            stamp_values == int(Cell.DEAD))))
+        for trial_index in range(NUM_TRIALS):
+            organism_genotypes = genotypes[0][trial_index]
+            scalar_values = organism_genotypes['scalar_genes'].flatten()
+            stamp_values = organism_genotypes['stamp_genes'].flatten()
+            msg = f'trial {trial_index}'
+            # Scalar genes are 50% of their max value, on average.
+            self.assertProportional(
+                1 << 31, scalar_values.mean(), delta=0.11, msg=msg)
+            # Scalar gene values are almost all unique, since few values
+            # are being drawn from the full range of 32-bit ints.
+            self.assertAlmostEqual(
+                NUM_ORGANISMS * NUM_GENES,
+                np.unique(scalar_values).size,
+                delta=0.01, msg=msg)
+            # The average stamp value is halfway between ALIVE and DEAD.
+            self.assertProportional(
+                (int(Cell.DEAD) + int(Cell.ALIVE)) / 2,
+                stamp_values.mean(),
+                0.2, msg=msg)
+            # About half of the stamp values are ALIVE.
+            self.assertProportional(
+                len(stamp_values) / 2,
+                np.count_nonzero(stamp_values == int(Cell.ALIVE)),
+                0.2, msg=msg)
+            # All stamp values are either ALIVE or DEAD.
+            self.assertEqual(
+                len(stamp_values),
+                np.count_nonzero(
+                    np.logical_or(
+                        stamp_values == int(Cell.ALIVE),
+                        stamp_values == int(Cell.DEAD))))
 
     def test_sample_random_genotypes(self):
         """Collect visualizations of random genotypes to verify manually."""

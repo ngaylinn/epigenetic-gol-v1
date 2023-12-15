@@ -9,6 +9,7 @@ which is run as a batch job on a CUDA GPU using the kernel module.
 """
 
 from copy import deepcopy
+import functools
 import itertools
 import random
 
@@ -20,23 +21,28 @@ from phenotype_program import (
 from kernel import select, FitnessDType, PhenotypeProgramDType, Simulator
 
 # Hyperparameters for the evolutionary process.
-NUM_SPECIES = 50
 NUM_TRIALS = 5
 NUM_ORGANISMS = 50
 NUM_SPECIES_GENERATIONS = 150
 NUM_ORGANISM_GENERATIONS = 150
 
-# Weight for computing species fitness. The first generation of organisms has
-# their fitness discounted by 50% while the last generation gets full credit.
-# All the others lie on a smooth gradient in between. By shaping these values
-# to match the fitness_summary data, we can compute fitness for all species
-# simultaneously.
-WEIGHTS = np.full(
-    (NUM_SPECIES, NUM_ORGANISM_GENERATIONS),
-    np.linspace(0.5, 1.0, num=NUM_ORGANISM_GENERATIONS))
+
+@functools.cache
+def get_weights(num_species):
+    """Generate a weight vector for computing fitness on a batch of species.
+
+    Used by compute_species_fitness. The first generation of organisms has
+    their fitness discounted by 50% while the last generation gets full credit.
+    All the others lie on a smooth gradient in between. By shaping these values
+    to match the fitness_summary data, we can compute fitness for all species
+    simultaneously.
+    """
+    return np.full(
+        (num_species, NUM_ORGANISM_GENERATIONS),
+        np.linspace(0.5, 1.0, num=NUM_ORGANISM_GENERATIONS))
 
 
-def compute_species_fitness(organism_fitness):
+def compute_species_fitness(num_species, organism_fitness):
     """Evaluate the fitness of a species from the fitness of its organisms.
 
     This project evolves species for "evolvability," using a proxy metric
@@ -49,7 +55,7 @@ def compute_species_fitness(organism_fitness):
     achieve high fitness that grows over time.
     """
     assert organism_fitness.shape == (
-        NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS,
+        num_species, NUM_TRIALS, NUM_ORGANISMS,
         NUM_ORGANISM_GENERATIONS)
 
     result = (
@@ -59,10 +65,10 @@ def compute_species_fitness(organism_fitness):
             np.max(organism_fitness, axis=2),
             axis=1,
         # Weight the scores so earlier generations are worth less.
-        ) * WEIGHTS
+        ) * get_weights(num_species)
     # Sum up the weighted per-generation median score for each species.
     ).sum(axis=1)
-    assert result.shape == (NUM_SPECIES,)
+    assert result.shape == (num_species,)
     return result.astype(FitnessDType)
 
 
@@ -87,11 +93,12 @@ class Clade:
         The fitness scores for the full population of species, across all
         species generations.
     """
-    def __init__(self, constraints=Constraints(), seed=None):
-        self.simulator = Simulator(NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
+    def __init__(self, num_species, constraints=Constraints(), seed=None):
+        self.simulator = Simulator(num_species, NUM_TRIALS, NUM_ORGANISMS)
         if seed is not None:
             random.seed(seed)
             self.simulator.seed(seed)
+        self.num_species = num_species
         self.constraints = constraints
         # This project uses "innovation numbers" as a technique for aligning
         # PhenotypePrograms for cross breeding. As such, all species in a clade
@@ -100,11 +107,11 @@ class Clade:
         self.programs = []
         self.genotypes = None
         self.organism_fitness_history = np.empty(
-            (NUM_SPECIES, NUM_TRIALS,
+            (num_species, NUM_TRIALS,
              NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS),
             dtype=np.uint32)
         self.species_fitness_history = np.empty(
-            (NUM_SPECIES, NUM_SPECIES_GENERATIONS), dtype=np.uint32)
+            (num_species, NUM_SPECIES_GENERATIONS), dtype=np.uint32)
 
     def evolve_organisms(self, fitness_goal, record=False):
         """Evolve a population of organisms of all species."""
@@ -123,13 +130,13 @@ class Clade:
                 self.simulator.simulate(fitness_goal)
             fitness_scores = self.simulator.get_fitness_scores()
             assert fitness_scores.shape == (
-                NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
+                self.num_species, NUM_TRIALS, NUM_ORGANISMS)
             self.organism_fitness_history[:, :, :, generation] = fitness_scores
             if last_generation:
                 # Keep track of organism genotypes from the last generation.
                 self.genotypes = self.simulator.get_genotypes()
                 assert self.genotypes.shape == (
-                    NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS)
+                    self.num_species, NUM_TRIALS, NUM_ORGANISMS)
             else:
                 self.simulator.propagate()
         return simulations
@@ -150,7 +157,7 @@ class Clade:
             # results to determine the fitness for each species.
             self.evolve_organisms(fitness_goal)
             this_gen_fitness = compute_species_fitness(
-                self.organism_fitness_history)
+                self.num_species, self.organism_fitness_history)
             self.species_fitness_history[:, generation] = this_gen_fitness
 
             # Breed new species, unless this is the last generation.
@@ -160,30 +167,30 @@ class Clade:
         progress_bar.close()
 
     @staticmethod
-    def make_random_species(innovation_counter=None, constraints=None):
+    def make_random_species(num_species, inno=None, constraints=None):
         """Generate a random population of species without a Clade object.
 
         This works by starting with a minimal program (just a Stamp with no
         bias or transforms), then systematically generating a population of
         mutants from that individual to cover a diverse range.
         """
-        if innovation_counter is None:
-            innovation_counter = itertools.count()
+        if inno is None:
+            inno = itertools.count()
         if constraints is None:
             constraints = Constraints(True, True, True)
         minimal_program = PhenotypeProgram()
-        minimal_program.add_draw(innovation_counter)
+        minimal_program.add_draw(inno)
         programs = [minimal_program]
         programs.extend(
-            [deepcopy(minimal_program) for _ in range(1, NUM_SPECIES)])
+            [deepcopy(minimal_program) for _ in range(1, num_species)])
         for program in programs:
-            program.randomize(innovation_counter, constraints)
+            program.randomize(inno, constraints)
         return programs
 
     def randomize_species(self):
         """Generate a random population of species to evolve."""
         self.programs = Clade.make_random_species(
-            self.innovation_counter, self.constraints)
+            self.num_species, self.innovation_counter, self.constraints)
 
     def propagate_species(self, fitness_scores):
         """Make a new generation of species derived from the previous one.
@@ -213,7 +220,7 @@ class Clade:
 
     def populate_simulator(self):
         """Send PhenotypeProgram data to the GPU for simulation."""
-        programs = np.zeros(NUM_SPECIES, dtype=PhenotypeProgramDType)
+        programs = np.zeros(self.num_species, dtype=PhenotypeProgramDType)
         for index, program in enumerate(self.programs):
             program.serialize(programs[index])
         self.simulator.populate(programs)
@@ -223,7 +230,7 @@ class Clade:
 class TestClade(Clade):
     """A clade with default PhenotypePrograms, for testing."""
     def __init__(self):
-        super().__init__(seed=42)
+        super().__init__(1, seed=42)
         test_program = PhenotypeProgram()
         draw_op = test_program.add_draw(self.innovation_counter)
         transform = draw_op.add_global_transform(self.innovation_counter)
@@ -232,5 +239,5 @@ class TestClade(Clade):
         transform.args[0].bias = 28
         transform.args[1].bias_mode = BiasMode.FIXED_VALUE
         transform.args[1].bias = 28
-        self.programs = [deepcopy(test_program) for _ in range(NUM_SPECIES)]
+        self.programs = [test_program]
 

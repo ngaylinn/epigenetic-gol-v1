@@ -23,17 +23,15 @@ import pandas as pd
 import seaborn as sns
 
 from kernel import Simulator, FitnessGoal
-from evolution import TestClade
+from evolution import (
+    NUM_TRIALS, NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS, Clade)
 
 # Hyperparameters for evolution. These are set to match the formal experiments
 # for now, but this is arbitrary since the main purpose of this script is to
 # compare relative performance across runs.
 NUM_SPECIES = 50
-NUM_TRIALS = 5
-NUM_ORGANISMS = 50
-NUM_GENERATIONS = 200
 POPULATION_SIZE = NUM_SPECIES * NUM_TRIALS * NUM_ORGANISMS
-NUM_LIFETIMES = POPULATION_SIZE * NUM_GENERATIONS
+NUM_LIFETIMES = POPULATION_SIZE * NUM_ORGANISM_GENERATIONS
 
 # Repeat each benchmark NUM_SAMPLES times to reduce noise.
 NUM_SAMPLES = 3
@@ -48,9 +46,10 @@ def sample_performance():
     goal = FitnessGoal.STILL_LIFE
 
     start = time.perf_counter()
-    clade = TestClade()
+    clade = Clade(NUM_SPECIES, seed=42)
+    clade.randomize_species()
     clade.populate_simulator()
-    for _ in range(NUM_GENERATIONS - 1):
+    for _ in range(NUM_ORGANISM_GENERATIONS - 1):
         clade.simulator.simulate(goal)
         clade.simulator.get_fitness_scores()
         clade.simulator.propagate()

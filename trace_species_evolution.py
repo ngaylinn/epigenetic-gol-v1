@@ -10,13 +10,14 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from evolution import NUM_SPECIES, NUM_TRIALS, Clade, compute_species_fitness
+from evolution import NUM_TRIALS, Clade, compute_species_fitness
 import gif_files
 from kernel import FitnessGoal
 from phenotype_program import Constraints, CROSSOVER_RATE
 
 # This script only looks at the first few generations of species.
 NUM_SPECIES_GENERATIONS = 5
+NUM_SPECIES = 50
 
 
 def main():
@@ -25,7 +26,7 @@ def main():
         allow_bias=True,
         allow_stamp_transforms=True,
         allow_composition=False)
-    clade = Clade(constraints, seed=42)
+    clade = Clade(NUM_SPECIES, constraints, seed=42)
     clade.randomize_species()
     selections = None
     for generation in range(NUM_SPECIES_GENERATIONS):

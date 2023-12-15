@@ -21,11 +21,13 @@ import time
 import numpy as np
 
 from evolution import (
-    NUM_SPECIES, NUM_TRIALS, NUM_ORGANISMS,
+    NUM_TRIALS, NUM_ORGANISMS,
     NUM_SPECIES_GENERATIONS, NUM_ORGANISM_GENERATIONS,
     Clade)
 from kernel import FitnessDType, FitnessGoal
 from phenotype_program import Constraints
+
+NUM_SPECIES = 50
 
 POPULATION_SIZE = NUM_SPECIES * NUM_TRIALS * NUM_ORGANISMS
 
@@ -248,7 +250,8 @@ class Experiment:
         # appends to the one already present on the filesystem.
         # Seed the RNG with the trial number, so each trial will have a
         # different but repeatable pseudorandom sequence.
-        clade = Clade(constraints=self.constraints, seed=self.trial)
+        clade = Clade(
+            NUM_SPECIES, constraints=self.constraints, seed=self.trial)
         clade.evolve_species(self.fitness_goal)
         experiment_data = self.get_results()
         experiment_data.log_trial(self.trial, clade)

@@ -5,7 +5,6 @@ import unittest
 import numpy as np
 
 from evolution import Clade
-from experiments import NUM_SPECIES
 from kernel import BiasMode, GenotypeDType
 from phenotype_program import (
     crossover_operation_lists,
@@ -166,7 +165,8 @@ class TestPhenotypeProgram(test_case.TestCase):
 
     def test_initial_population(self):
         constraints = Constraints(True, True, True)
-        clade = Clade(constraints)
+        num_species = 50
+        clade = Clade(num_species, constraints)
         clade.randomize_species()
         programs = clade.populate_simulator()
         progenitor = programs[0]
@@ -176,7 +176,7 @@ class TestPhenotypeProgram(test_case.TestCase):
         num_mutants = np.count_nonzero(diffs_per_species)
         # Every species derived from the progenitor has some mutation.
         self.assertProportional(
-            NUM_SPECIES - 1, num_mutants, delta=0.05)
+            num_species - 1, num_mutants, delta=0.05)
         # On average, each species has ~10 mutations.
         self.assertAlmostEqual(np.mean(diffs_per_species), 10.2, delta=0.1)
         # No species has more than 14 mutations.
