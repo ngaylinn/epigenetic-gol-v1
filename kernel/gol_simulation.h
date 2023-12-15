@@ -12,6 +12,10 @@
 
 namespace epigenetic_gol_kernel {
 
+// A compile-time flag that disables simulation for the ENTROPY FitnessGoal and
+// prevents the Simulator class from allocating the memory required for that.
+#define LOW_MEM false
+
 /*
  * Compute Game of Life Simulations in parallel.
  *

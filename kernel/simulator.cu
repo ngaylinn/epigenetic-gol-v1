@@ -2,9 +2,6 @@
 #include "phenotype_program.h"
 #include "simulator.h"
 
-// TODO: Unused?
-#include <vector>
-
 #include "cuda_utils.cuh"
 #include "gol_simulation.h"
 #include "reproduction.h"
@@ -24,11 +21,13 @@ class Simulator::DeviceAllocations {
         DeviceData<unsigned int> parent_selections;
         DeviceData<unsigned int> mate_selections;
         DeviceData<Fitness> fitness_scores;
-        // The Videos take up a ton of space on the GPU, and aren't necessary
-        // most of the time, since Videos are typically only recorded on
-        // demand. This was added to simplify the ENTROPY FitnessGoal, which
-        // requires capturing full simulation Videos.
-        DeviceData<Video> videos;
+        #if LOW_MEM == false
+            // The Videos take up a ton of space on the GPU, and aren't necessary
+            // most of the time, since Videos are typically only recorded on
+            // demand. This was added to simplify the ENTROPY FitnessGoal, which
+            // requires capturing full simulation Videos.
+            DeviceData<Video> videos;
+        #endif
 
         DeviceAllocations(int num_species, int size)
             : programs(num_species),
@@ -37,9 +36,11 @@ class Simulator::DeviceAllocations {
               next_gen_genotypes(size),
               parent_selections(size),
               mate_selections(size),
-              fitness_scores(size),
-              videos(size) {
-        }
+              fitness_scores(size)
+              #if LOW_MEM == false
+                  , videos(size)
+              #endif
+            {}
 };
 
 Simulator::Simulator(
@@ -93,18 +94,34 @@ void Simulator::propagate() {
 }
 
 void Simulator::simulate(const FitnessGoal& goal) {
-    // Passing in d->videos is only necessary for the ENTROPY FitnessGoal, but
-    // it's simpler just to use it every time.
+    // The videos parameter is unused except when using the ENTROPY
+    // FitnessGoal. It's also very expensive, so we don't even bother to
+    // allocate it in low-memory mode.
+    #if LOW_MEM == true
+        Video* videos = nullptr;
+    #else
+        Video* videos = d->videos;
+    #endif
+
     simulate_population<false>(
             size, num_species, goal, d->programs,
-            d->curr_gen_genotypes, d->fitness_scores, d->videos);
+            d->curr_gen_genotypes, d->fitness_scores, videos);
 }
 
 Video* Simulator::simulate_and_record(const FitnessGoal& goal) {
+    // We always need to allocate videos in order to record a batch of
+    // simulation. In low-memory mode, this is done only as needed. Otherwise,
+    // the videos buffer is already allocated.
+    #if LOW_MEM == true
+        DeviceData<Video> videos(size);
+    #else
+        DeviceData<Video>& videos = d->videos;
+    #endif
+
     simulate_population<true>(
             size, num_species, goal, d->programs,
-            d->curr_gen_genotypes, d->fitness_scores, d->videos);
-    return d->videos.copy_to_host();
+            d->curr_gen_genotypes, d->fitness_scores, videos);
+    return videos.copy_to_host();
 }
 
 const Fitness* Simulator::evolve(

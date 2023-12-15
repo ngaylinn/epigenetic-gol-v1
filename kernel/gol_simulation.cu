@@ -1,12 +1,8 @@
-// TODO: Why is environment included here? Either move it below or add a comment.
-#include "environment.h"
 #include "gol_simulation.h"
-
-// TODO: Unused
-#include <cub/cub.cuh>
 
 #include "cuda_utils.cuh"
 #include "development.cuh"
+#include "environment.h"
 #include "fitness.cuh"
 
 namespace epigenetic_gol_kernel {
@@ -132,6 +128,12 @@ void simulate_population(
         const Genotype* genotypes,
         Fitness* fitness_scores,
         Video* videos) {
+    // The ENTROPY fitness goal requires recording full videos for all
+    // simulations, which is too big of a memory allocation for some computers.
+    // As an easy way of getting most of the project to work on those
+    // computers, the LOW_MEM flag lets you disable this entirely.
+    if (LOW_MEM && goal == FitnessGoal::ENTROPY) return;
+
     dim3 grid = { population_size / num_species, num_species };
     switch (goal) {
         case FitnessGoal::ENTROPY:
