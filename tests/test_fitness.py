@@ -69,15 +69,13 @@ class TestFitness(test_case.TestCase):
         assert best_simulation.shape == (NUM_STEPS, WORLD_SIZE, WORLD_SIZE)
         return fitness.max(), best_simulation
 
-    # TODO: Restore and regenerate golden file when you have a machine with
-    # enough power to run the ENTROPY FitnessGoal.
-    #def test_entropy(self):
-    #    _, video = self.evolve_organism(FitnessGoal.ENTROPY)
-    #    # For entropy, just collect an example video. Unlike the other
-    #    # FitnessGoals, there's no good way to validate the logic with a
-    #    # Python-based implementation, since it depends on the particulars of
-    #    # the nvcomp compression algorithms.
-    #    self.assertGolden(video)
+    def test_entropy(self):
+        _, video = self.evolve_organism(FitnessGoal.ENTROPY)
+        # For entropy, just collect an example video. Unlike the other
+        # FitnessGoals, there's no good way to validate the logic with a
+        # Python-based implementation, since it depends on the particulars of
+        # the nvcomp compression algorithms.
+        self.assertGolden(video)
 
     def test_explode(self):
         fitness, video = self.evolve_organism(FitnessGoal.EXPLODE)
