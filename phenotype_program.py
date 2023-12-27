@@ -193,6 +193,11 @@ class Constraints:
     allow_stamp_transforms: bool = False
     """Whether Stamp genes can have TransformOperations."""
 
+    def __str__(self):
+        return (f'B{self.allow_bias:b}'
+                f'C{self.allow_composition:b}'
+                f'S{self.allow_stamp_transforms:b}')
+
 
 class Argument:
     """Configuration options for an Operation (Draw or Transform).

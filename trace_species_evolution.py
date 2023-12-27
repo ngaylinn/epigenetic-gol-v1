@@ -46,7 +46,8 @@ def main():
         # Evolve some organisms
         simulations = clade.evolve_organisms(goal, record=True)
         organism_fitness = clade.organism_fitness_history
-        species_fitness = compute_species_fitness(organism_fitness)
+        species_fitness = compute_species_fitness(
+            NUM_SPECIES, organism_fitness)
 
         # Breed the next generation and record selections. This happens even
         # for the last generation, even though the children go unusued, just to

@@ -23,7 +23,7 @@ import numpy as np
 from evolution import (
     NUM_TRIALS, NUM_ORGANISMS,
     NUM_SPECIES_GENERATIONS, NUM_ORGANISM_GENERATIONS,
-    Clade)
+    compute_species_fitness, Clade, ControlClade)
 from kernel import FitnessDType, FitnessGoal
 from phenotype_program import Constraints
 
@@ -40,7 +40,7 @@ class OrganismData:
 
     Attributes
     ----------
-    fitness_scores: FitnessDType
+    fitness: FitnessDType
         The fitness score for this organism
     genotype: numpy array of GenotypeDType
         The Genotype of this organism, useful for reproducing the phenotype on
@@ -321,6 +321,74 @@ class Experiment:
         return self.trial < other.trial
 
 
+class Control:
+    def __init__(self, path, name=None, fitness_goal=None, use_tiling=False,
+                 config_str=None):
+        self.path = path
+        self.results_path = path.joinpath('results.pickle')
+        self.name = name
+        self.fitness_goal = fitness_goal
+        self.use_tiling = use_tiling
+        self.config_str = config_str
+
+    def has_started(self):
+        return not self.has_finished()
+
+    def has_finished(self):
+        return self.results_path.exists()
+
+    def run(self):
+        """Run this control and save the results.
+
+        While experiments must evolve NUM_SPECIES different species NUM_TRIALS
+        times, the control condition uses just two hard-coded species. That
+        means running controls is much simpler and faster than running
+        experiments. There's no need to break down the work into smaller chunks
+        and save / restore partial progress like above. Just run the control
+        and collect the results in one shot.
+        """
+        # Evolve some organisms for the fixed control species.
+        clade = ControlClade(self.use_tiling)
+        clade.evolve_organisms(self.fitness_goal)
+
+        # Find the best organism across all trials and record its metadata.
+        organism_fitness_by_trial = clade.organism_fitness_history[0, :, :, -1]
+        assert organism_fitness_by_trial.shape == (NUM_TRIALS, NUM_ORGANISMS)
+        organism_trial = organism_fitness_by_trial.max(axis=1).argmax()
+        organism_index = organism_fitness_by_trial[organism_trial].argmax()
+        organism_data = OrganismData(
+            clade.organism_fitness_history[
+                0, organism_trial, organism_index, -1],
+            clade.genotypes[0, organism_trial, organism_index])
+
+        # Record metadata for this one species.
+        species_fitness = compute_species_fitness(1, clade.organism_fitness_history)
+        species_data = SpeciesData(
+            species_fitness, clade.organism_fitness_history[0],
+            clade.programs[0], organism_data)
+        self.save_to_filesystem(species_data)
+
+    def save_to_filesystem(self, species_data):
+        """Record results from run to the filesystem."""
+        try:
+            # Save that metadata.
+            with open(self.results_path, 'wb') as file:
+                pickle.dump(species_data, file)
+            return True
+        except Exception:
+            return False
+
+    def load_from_filesystem(self):
+        """Record results from run to the filesystem."""
+        try:
+            # Save that metadata.
+            with open(self.results_path, 'rb') as file:
+                species_data = pickle.load(file)
+            return species_data
+        except Exception:
+            return None
+
+
 def build_experiment_list():
     """Construct the list of all experiments to run for this project.
 
@@ -339,16 +407,17 @@ def build_experiment_list():
     There's no need to call this function directly, just use the
     experiment_list variable below.
     """
-    goals = [
-        FitnessGoal.ENTROPY,
-        FitnessGoal.EXPLODE,
-        FitnessGoal.LEFT_TO_RIGHT,
-        FitnessGoal.RING,
-        FitnessGoal.STILL_LIFE,
-        FitnessGoal.SYMMETRY,
-        FitnessGoal.THREE_CYCLE,
-        FitnessGoal.TWO_CYCLE,
-    ]
+    # goals = [
+    #     FitnessGoal.ENTROPY,
+    #     FitnessGoal.EXPLODE,
+    #     FitnessGoal.LEFT_TO_RIGHT,
+    #     FitnessGoal.RING,
+    #     FitnessGoal.STILL_LIFE,
+    #     FitnessGoal.SYMMETRY,
+    #     FitnessGoal.THREE_CYCLE,
+    #     FitnessGoal.TWO_CYCLE,
+    # ]
+    goals = FitnessGoal.__members__.values()
     bias_options = [
         False,
         True,
@@ -368,14 +437,10 @@ def build_experiment_list():
                 for allow_stamp_transforms in stamp_options:
                     constraints = Constraints(
                         allow_bias, allow_composition, allow_stamp_transforms)
-                    constraint_str = (
-                        f'B{allow_bias:b}'
-                        f'C{allow_composition:b}'
-                        f'S{allow_stamp_transforms:b}')
                     path = pathlib.Path(
-                        f'output/experiments/{goal.name}/{constraint_str}')
+                        f'output/experiments/{goal.name}/{constraints}')
                     path.mkdir(parents=True, exist_ok=True)
-                    name = f'{goal.name}_{constraint_str}'
+                    name = f'{goal.name}_{constraints}'
                     experiment_list.append(
                         Experiment(path, name, goal, constraints))
     return experiment_list
@@ -383,3 +448,26 @@ def build_experiment_list():
 
 # The master list of all experiments to run for this project.
 experiment_list = build_experiment_list()
+
+
+def build_control_list():
+    """Like build_experiment_list, but for the controls."""
+    goals = FitnessGoal.__members__.values()
+    tiling_options = [
+        False,
+        True,
+    ]
+    control_list = []
+    for goal in goals:
+        for use_tiling in tiling_options:
+            config_str = f'CONTROL_{"TILE" if use_tiling else "PLACE"}'
+            path = pathlib.Path(
+                f'output/experiments/{goal.name}/{config_str}')
+            path.mkdir(parents=True, exist_ok=True)
+            name = f'{goal.name}_{config_str}'
+            control_list.append(
+                Control(path, name, goal, use_tiling, config_str))
+    return control_list
+
+# The master list of all controls to run for this project.
+control_list = build_control_list()

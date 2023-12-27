@@ -227,6 +227,18 @@ class Clade:
         return programs
 
 
+class ControlClade(Clade):
+    """A clade with one of two simple PhenotypePrograms to use as controls."""
+    def __init__(self, use_tiling):
+        super().__init__(1, seed=42)
+        program = PhenotypeProgram()
+        draw_op = program.add_draw(self.innovation_counter)
+        transform = draw_op.add_global_transform(self.innovation_counter)
+        transform.transform_mode = (
+            TransformMode.TILE if use_tiling else TransformMode.TRANSLATE)
+        self.programs = [program]
+
+
 class TestClade(Clade):
     """A clade with default PhenotypePrograms, for testing."""
     def __init__(self):
@@ -234,7 +246,7 @@ class TestClade(Clade):
         test_program = PhenotypeProgram()
         draw_op = test_program.add_draw(self.innovation_counter)
         transform = draw_op.add_global_transform(self.innovation_counter)
-        transform.type = TransformMode.TRANSLATE
+        transform.transform_mode = TransformMode.TRANSLATE
         transform.args[0].bias_mode = BiasMode.FIXED_VALUE
         transform.args[0].bias = 28
         transform.args[1].bias_mode = BiasMode.FIXED_VALUE

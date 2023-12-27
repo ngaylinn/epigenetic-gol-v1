@@ -10,7 +10,9 @@ import datetime
 import signal
 import subprocess
 
-from experiments import NUM_TRIALS, experiment_list
+import tqdm
+
+from experiments import NUM_TRIALS, experiment_list, control_list
 
 
 user_requested_abort = False
@@ -111,6 +113,22 @@ def run_experiments():
         # Python GIL and GPU resources makes that tricky, so just wait for the
         # command to complete before resuming.
         subprocess.run(['python3', 'visualize_results.py'])
+
+    print(f'Running {len(control_list)} controls.')
+    if not all(control.has_finished() for control in control_list):
+        progress_bar = tqdm.tqdm(
+            total=len(control_list),
+            mininterval=1,
+            bar_format='Completed {n_fmt} of {total_fmt} | {bar} | {elapsed}')
+        for control in control_list:
+            if not control.has_finished():
+                control.run()
+            progress_bar.update()
+        progress_bar.close()
+    print('All controls completed.')
+    subprocess.run(['python3', 'visualize_results.py'])
+
+
 
 
 if __name__ == '__main__':
