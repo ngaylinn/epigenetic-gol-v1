@@ -21,6 +21,11 @@ IMAGE_SCALE_FACTOR = 2
 MILLISECONDS_PER_FRAME = 100
 MILLISECONDS_FOR_PHENOTYPE = 10 * MILLISECONDS_PER_FRAME
 
+FORMAT_OPTIONS = {
+    'cmap': 'gray',
+    'vmin': 0,
+    'vmax': 255
+}
 
 def simulation_data_to_image(frame):
     """Create a single Image from a 2D Numpy array."""
@@ -115,16 +120,11 @@ def add_simulation_data_to_figure(data, fig, axis):
     plt.setp(axis.spines.values(), color='#ff0000')
     plt.setp(axis.spines.values(), linewidth=1)
 
-    format_options = {
-        'cmap': 'gray',
-        'vmin': 0,
-        'vmax': 255
-    }
     if data.ndim == 2:
-        plt.imshow(data, **format_options)
+        plt.imshow(data, **FORMAT_OPTIONS)
         return None
 
-    image = plt.imshow(data[0], **format_options)
+    image = plt.imshow(data[0], **FORMAT_OPTIONS)
 
     def animate_func(i):
         image.set_array(data[i])
