@@ -18,6 +18,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.stats import kruskal, mannwhitneyu, false_discovery_control
 import seaborn as sns
 
 from evolution import (
@@ -61,24 +62,12 @@ def render_random_populations(programs):
     return simulations[:, 0]
 
 
-def visualize_random_populations(videos, title, filename):
-    """Export a collage image of random, unevolved populations.
-
-    This chooses a set of 50 images from the first Frames in videos and
-    composes them into a single image.
-    """
-    fig = plt.figure(title, figsize=(20, 10))
-    fig.suptitle(title)
-    if len(videos) > 50:
-        videos = np.random.choice(videos, [50], replace=False)
-    for index, video in enumerate(videos):
-        axis = fig.add_subplot(5, 10, index + 1)
-        axis.tick_params(bottom=False, left=False, labelbottom=False,
-                         labelleft=False)
-        axis.grid(False)
-        gif_files.add_simulation_data_to_figure(video[0], fig, axis)
-    fig.savefig(filename)
-    plt.close()
+def render_image_grid(images, rows=2, cols=8):
+    fig, axes = plt.subplots(rows, cols, figsize=(2*cols, 2*rows))
+    for index in range(rows * cols):
+        axis = axes[divmod(index, cols)]
+        gif_files.add_simulation_data_to_figure(images[index], fig, axis)
+    return fig, axes
 
 
 def visualize_species_data(species_data, species_path, name):
@@ -87,7 +76,7 @@ def visualize_species_data(species_data, species_path, name):
     organism_fitness_by_trial = pd.DataFrame(
         np.column_stack(
             (*ORGANISM_INDEX_COLUMNS,
-             species_data.all_trial_organism_fitness.flatten())),
+             species_data.best_organism_fitness_history().flatten())),
         columns=['Trial', 'Generation', 'Fitness'])
     fig = sns.relplot(
         data=organism_fitness_by_trial, kind='line',
@@ -122,10 +111,11 @@ def visualize_control_data(control):
     visualize_species_data(species_data, control.path, control.name)
 
     random_populations = render_random_populations([phenotype_program])
-    visualize_random_populations(
-        random_populations[0],
-        f'Random Initial Population ({control.name})',
-        control.path.joinpath('random_initial_population.png'))
+    fig, axes = render_image_grid(random_populations[0, :, 0])
+    fig.suptitle(f'Random Initial Population ({control.name})')
+    plt.tight_layout()
+    fig.savefig(control.path.joinpath('random_initial_population.png'))
+    plt.close()
 
     # Copy the best organism to the experiment directory.
     best_organism = species_data.best_organism
@@ -173,7 +163,7 @@ def visualize_experiment_data(experiment):
     species_fitness_by_trial = pd.DataFrame(
         np.column_stack(
             (*SPECIES_INDEX_COLUMNS,
-             experiment_data.all_trial_species_fitness.flatten())),
+             np.array(experiment_data.all_trial_species_fitness).flatten())),
         columns=['Trial', 'Generation', 'Fitness'])
     fig = sns.relplot(
         data=species_fitness_by_trial, kind='line',
@@ -189,7 +179,7 @@ def visualize_experiment_data(experiment):
             (species_data.phenotype_program.serialize()
              for species_data in experiment_data.best_species_per_trial),
             dtype=PhenotypeProgramDType))
-    best_fitness = 0
+    best_fitness = -1
     best_simulation = None
     for trial in range(experiment.trial + 1):
         # Generate output for this species
@@ -215,12 +205,12 @@ def visualize_experiment_data(experiment):
             best_simulation = simulation
 
         # Visualize a random population of organisms generated for this species
-        # by putting the first Frame from all NUM_ORGANISMS Videos into a
-        # single image.
-        visualize_random_populations(
-            random_populations[trial],
-            f'Random Initial Population ({experiment.name}, Trial {trial:d})',
-            species_path.joinpath('random_initial_population.png'))
+        # by putting the first Frame from a sampling of Videos into a single
+        # image.
+        fig, axes = render_image_grid(random_populations[trial, :, 0])
+        plt.tight_layout()
+        fig.savefig(species_path.joinpath('random_initial_population.png'))
+        plt.close()
 
     gif_files.save_simulation_data_as_image(
         best_simulation,
@@ -235,7 +225,8 @@ def visualize_cross_experiment_comparisons():
         this_experiment_data = experiment.get_results()
         all_experiment_data = pd.concat((all_experiment_data, pd.DataFrame({
             'FitnessGoal': experiment.fitness_goal.name,
-            'FitnessScore': this_experiment_data.all_trial_species_fitness[:, -1],
+            'FitnessScore': [trial_fitness[-1] for trial_fitness in
+                this_experiment_data.all_trial_species_fitness],
             'Bias': experiment.constraints.allow_bias,
             'Composition': experiment.constraints.allow_composition,
             'StampTransforms': experiment.constraints.allow_stamp_transforms,
@@ -280,199 +271,278 @@ def visualize_cross_experiment_comparisons():
     plt.close()
 
 
+def visualize_best_phenotypes(goals, best_expt_species_by_goal,
+                              best_ctrl_species_by_goal):
+    images = [None] * 2 * len(goals)
+    for index, goal in enumerate(goals):
+        best_expt_species, config, _ = best_expt_species_by_goal[goal]
+        best_expt_organism = best_expt_species.best_organism
+        best_expt_simulation = simulate_organism(
+            best_expt_species.phenotype_program.serialize(),
+            best_expt_organism.genotype)
+        images[index] = best_expt_simulation[0]
+        images[index + len(goals)] = best_expt_simulation[-1]
+
+    fig, axes = render_image_grid(images)
+    axes[0, 0].set(ylabel='First step')
+    axes[1, 0].set(ylabel='Last step')
+    for index, goal in enumerate(goals):
+        _, config, _ = best_expt_species_by_goal[goal]
+        axes[0, index].xaxis.set_label_position('top')
+        axes[0, index].set(xlabel=config)
+        axes[0, index].set_title(goal)
+    fig.suptitle('Best experimental phenoytpes summary')
+    plt.tight_layout()
+    plt.savefig(f'output/experiments/best_expt_phenotypes.png')
+    plt.close()
+
+    for index, goal in enumerate(goals):
+        best_ctrl_species, config = best_ctrl_species_by_goal[goal]
+        best_ctrl_organism = best_ctrl_species.best_organism
+        best_ctrl_simulation = simulate_organism(
+            best_ctrl_species.phenotype_program.serialize(),
+            best_ctrl_organism.genotype)
+        images[index] = best_ctrl_simulation[0]
+        images[index + len(goals)] = best_ctrl_simulation[-1]
+
+    fig, axes = render_image_grid(images)
+    axes[0, 0].set(ylabel='First step')
+    axes[1, 0].set(ylabel='Last step')
+    for index, goal in enumerate(goals):
+        _, config = best_ctrl_species_by_goal[goal]
+        axes[0, index].xaxis.set_label_position('top')
+        axes[0, index].set(xlabel=config)
+        axes[0, index].set_title(goal)
+    fig.suptitle('Best control phenoytpes summary')
+    plt.tight_layout()
+    plt.savefig(f'output/experiments/best_ctrl_phenotypes.png')
+    plt.close()
+
+
+def visualize_evolvability(goals,
+                           first_gen_best_organism_fitness_by_goal,
+                           best_expt_species_by_goal,
+                           best_ctrl_species_by_goal):
+    for goal in goals:
+        # Visualize species fitness growth over generations.
+        expt_species_data, config, expt_data = best_expt_species_by_goal[goal]
+        expt_species_fitness_data = pd.DataFrame(
+            np.column_stack(
+                (*SPECIES_INDEX_COLUMNS,
+                 np.array(expt_data.all_trial_species_fitness).flatten())),
+            columns=['Trial', 'Generation', 'Fitness'])
+        facet_grid = sns.relplot(
+            data=expt_species_fitness_data, kind='line',
+            x='Generation', y='Fitness')
+        facet_grid.figure.set_size_inches(4, 4)
+        plt.suptitle(f'All trials best species fitness ({goal})')
+        plt.tight_layout()
+        plt.savefig(f'output/experiments/{goal}/species_fitness.png')
+        plt.close()
+
+        # Visualize organism fitness growth over generations, from control and
+        # first / last species generation.
+        expt_species_data, config, expt_data = best_expt_species_by_goal[goal]
+        best_organism_fitness = expt_species_data.all_trial_organism_fitness.max(
+            axis=1)
+        expt_organism_fitness_data = pd.DataFrame(
+            np.column_stack(
+                (*ORGANISM_INDEX_COLUMNS, best_organism_fitness.flatten())),
+            columns=['Trial', 'Generation', 'Fitness'])
+        expt_organism_fitness_data['Configuration'] = 'Expt (evolved species)'
+
+        first_organism_fitness_data = pd.DataFrame(
+            np.column_stack(
+                (*ORGANISM_INDEX_COLUMNS,
+                 first_gen_best_organism_fitness_by_goal[goal].flatten())),
+            columns=['Trial', 'Generation', 'Fitness'])
+        first_organism_fitness_data['Configuration'] = 'Expt (unevolved species)'
+
+        ctrl_species_data, config = best_ctrl_species_by_goal[goal]
+        ctrl_organism_fitness_data = pd.DataFrame(
+            np.column_stack(
+                (*ORGANISM_INDEX_COLUMNS,
+                 ctrl_species_data.best_organism_fitness_history().flatten())),
+            columns=['Trial', 'Generation', 'Fitness'])
+        ctrl_organism_fitness_data['Configuration'] = config
+
+        eu = first_organism_fitness_data.where(
+            first_organism_fitness_data['Generation'] == 149
+        )['Fitness'].dropna()
+        ee = expt_organism_fitness_data.where(
+            expt_organism_fitness_data['Generation'] == 149
+        )['Fitness'].dropna()
+        c = ctrl_organism_fitness_data.where(
+            ctrl_organism_fitness_data['Generation'] == 149
+        )['Fitness'].dropna()
+
+        print(f'Organsim fitness, experiment v. control ({goal}):')
+        print('kruskal-walace', kruskal(eu, ee, c).pvalue)
+        print('evolved experiment v. control', mannwhitneyu(ee, c).pvalue)
+        print('unevolved experiment v. control', mannwhitneyu(eu, c).pvalue)
+        print('evolved experiment v. unevolved experiment',
+              mannwhitneyu(ee, eu).pvalue)
+        print()
+
+        combined_organism_fitness_data = pd.concat(
+            (expt_organism_fitness_data,
+             first_organism_fitness_data,
+             ctrl_organism_fitness_data))
+
+        facet_grid = sns.relplot(
+            data=combined_organism_fitness_data, kind='line', legend='brief',
+            x='Generation', y='Fitness', hue='Configuration')
+        facet_grid.legend.remove()
+        facet_grid.figure.set_size_inches(4, 4)
+        plt.tight_layout()
+        ax = facet_grid.axes[0, 0]
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0 + box.height * 0.2,
+                         box.width, box.height * 0.7])
+
+        plt.legend(loc='best', bbox_to_anchor=(1.1, -0.2), ncol=2,
+                   frameon=False)
+        plt.suptitle(f'All trials best organism fitness ({goal})')
+        plt.savefig(f'output/experiments/{goal}/organism_fitness.png')
+        plt.close()
+
+
+def visualize_per_goal_fitness(goals, experiment_data):
+    # Normalize fitness scores across all FitnessGoals.
+    per_goal_max_scores = {
+        goal: experiment_data.where(
+            experiment_data['FitnessGoal'] == goal)['FitnessScore'].max()
+        for goal in goals
+    }
+    max_scores = experiment_data['FitnessGoal'].map(per_goal_max_scores)
+    experiment_data['FitnessScore'] /= max_scores
+
+    # Calculate expt vs. ctrl p-values for each of 8 fitness goals
+    per_goal_p_value = {}
+    for goal in goals:
+        data_for_goal = experiment_data.where(
+            experiment_data['FitnessGoal'] == goal)
+        expt_data_points = data_for_goal.where(
+            experiment_data['Kind'] == 'Experiment'
+        )['FitnessScore'].dropna()
+        ctrl_data_points = data_for_goal.where(
+            experiment_data['Kind'] == 'Control'
+        )['FitnessScore'].dropna()
+        per_goal_p_value[goal] = mannwhitneyu(
+            expt_data_points, ctrl_data_points).pvalue
+
+    # Adjust the p values to account for the false positive rate associated
+    # with repeated statistical tests.
+    corrected_p_values = false_discovery_control(
+        list(per_goal_p_value.values()))
+    for goal, new_value in zip(per_goal_p_value.keys(), corrected_p_values):
+        per_goal_p_value[goal] = new_value
+
+    # Render a chart with one column for each FitnessGoal, comparing experiment
+    # to control.
+    plt.figure().suptitle(f'Final generation organism fitness per FitnessGoal')
+    ax = sns.boxplot(
+        data=experiment_data, x='FitnessGoal', y='FitnessScore',
+        hue='Kind', width=0.3, showfliers=False)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=-45)
+    ax.set_ylabel('Fitness score (normalized)')
+
+    # Display p-values above each column, staggered so they don't overlap with
+    # one another.
+    for index, goal in enumerate(goals):
+        p_value = per_goal_p_value[goal]
+        x = index - 0.5  # Ideally, this should account for label width.
+        y = 1.175 - 0.1 * (index % 2)
+        plt.text(x, y, f'(p = {p_value:.2g})')
+    plt.legend(loc='best')
+    plt.tight_layout()
+    plt.savefig('output/experiments/organism_fitness_all_goals.png')
+    plt.close()
+
+
 def visualize_experiment_vs_control():
-    best_experiment_species_by_goal = {}
+    best_expt_species_by_goal = {}
+    first_gen_best_organism_fitness_by_goal = {}
     all_experiment_data = pd.DataFrame()
+    # Pre-process all the experiment data, capturing the best species for each
+    # goal and building up a master table of all the experiment data.
     for experiment in experiment_list:
         goal = experiment.fitness_goal.name
         this_experiment_data = experiment.get_results()
-        species_data = this_experiment_data.best_species_per_trial[-1]
-        prev_best, _, _ = best_experiment_species_by_goal.get(
+        # Pick out the species from the trial with the most fit organisms.
+        species_data = this_experiment_data.best_species_per_trial[
+            np.argmax([species.best_organism.fitness
+                       for species in
+                       this_experiment_data.best_species_per_trial])]
+        # If we're processing multiple experiments with the same fitness goal,
+        # only keep track of the best one.
+        prev_best, _, _ = best_expt_species_by_goal.get(
             goal, (None, None, None))
         if (prev_best is None or
             prev_best.best_organism.fitness <
             species_data.best_organism.fitness):
-            best_experiment_species_by_goal[goal] = (
+            best_expt_species_by_goal[goal] = (
                 species_data, str(experiment.constraints),
                 this_experiment_data)
+        prev_best, _ = first_gen_best_organism_fitness_by_goal.get(
+            goal, (None, None))
+        first_gen_best_organism_fitness_by_goal[goal] = (
+            this_experiment_data.first_gen_organism_fitness_scores)
+
+        # Go through the organism scores for the first generation to find the
+        # ones associated with the best performing species trial.
+        all_species_first_gen_scores = (
+            this_experiment_data.first_gen_organism_fitness_scores)
+        assert len(all_species_first_gen_scores) == NUM_TRIALS
+        prev_best = -1
+        for first_gen_scores in all_species_first_gen_scores:
+            assert first_gen_scores.shape == (
+                NUM_TRIALS, NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS)
+            this_species_best_fitness = first_gen_scores[:, :, -1].max()
+            if prev_best < this_species_best_fitness:
+                first_gen_best_organism_fitness_by_goal[goal] = (
+                    first_gen_scores.max(axis=1))
+
         all_experiment_data = pd.concat((all_experiment_data, pd.DataFrame({
             'FitnessGoal': goal,
-            'FitnessScore': species_data.all_trial_organism_fitness[:, -1],
+            'FitnessScore': this_experiment_data.organism_fitness_scores,
             'Configuration': str(experiment.constraints),
             'Kind': 'Experiment',
             'Best': False,
         })))
 
-    best_control_species_by_goal = {}
+    best_ctrl_species_by_goal = {}
     for control in control_list:
         species_data = control.load_from_filesystem()
         goal = control.fitness_goal.name
-        prev_best, _ = best_control_species_by_goal.get(goal, (None, None))
+        prev_best, _ = best_ctrl_species_by_goal.get(goal, (None, None))
         if (prev_best is None or
             prev_best.best_organism.fitness <
             species_data.best_organism.fitness):
-            best_control_species_by_goal[goal] = (
+            best_ctrl_species_by_goal[goal] = (
                 species_data, control.config_str)
+        best_organism_fitness = species_data.all_trial_organism_fitness.max(
+            axis=1)
         all_experiment_data = pd.concat((all_experiment_data, pd.DataFrame({
             'FitnessGoal': goal,
-            'FitnessScore': species_data.all_trial_organism_fitness[:, -1],
+            'FitnessScore': best_organism_fitness[:, -1],
             'Configuration': control.config_str,
             'Kind': 'Control',
             'Best': False,
         })))
     goals = all_experiment_data['FitnessGoal'].unique()
 
-    fig, axes = plt.subplots(2, 8, figsize=(16, 4))
-    axes[0, 0].set(ylabel='First step')
-    axes[1, 0].set(ylabel='Last step')
-    for index, goal in enumerate(goals):
-        best_expt_species, config, _ = best_experiment_species_by_goal[goal]
-        best_expt_organism = best_expt_species.best_organism
-        best_expt_simulation = simulate_organism(
-            best_expt_species.phenotype_program.serialize(),
-            best_expt_organism.genotype)
+    # Render a summary of the best phenotypes from experiment and control.
+    # visualize_best_phenotypes(goals, best_expt_species_by_goal,
+    #                           best_ctrl_species_by_goal)
 
-        axes[0, index].xaxis.set_label_position('top')
-        axes[0, index].set(xlabel=config)
-        axes[0, index].set_title(goal)
+    ## Visualize how evolvability improves as the species evolve.
+    # visualize_evolvability(goals,
+    #                        first_gen_best_organism_fitness_by_goal,
+    #                        best_expt_species_by_goal,
+    #                        best_ctrl_species_by_goal)
 
-        axes[0, index].imshow(
-            best_expt_simulation[0], **gif_files.FORMAT_OPTIONS)
-        axes[0, index].grid(False)
-        axes[0, index].tick_params(
-            bottom=False, left=False, labelbottom=False, labelleft=False)
-        axes[1, index].imshow(
-            best_expt_simulation[-1], **gif_files.FORMAT_OPTIONS)
-        axes[1, index].grid(False)
-        axes[1, index].tick_params(
-            bottom=False, left=False, labelbottom=False, labelleft=False)
-    fig.suptitle('Best experimental phenoytpes summary')
-    plt.tight_layout()
-    plt.savefig(f'output/experiments/best_expt_phenotypes.png')
-    plt.close()
-
-    fig, axes = plt.subplots(2, 8, figsize=(16, 4))
-    axes[0, 0].set(ylabel='First step')
-    axes[1, 0].set(ylabel='Last step')
-    for index, goal in enumerate(goals):
-        best_ctrl_species, config = best_control_species_by_goal[goal]
-        best_ctrl_organism = best_ctrl_species.best_organism
-        best_ctrl_simulation = simulate_organism(
-            best_ctrl_species.phenotype_program.serialize(),
-            best_ctrl_organism.genotype)
-
-        axes[0, index].xaxis.set_label_position('top')
-        axes[0, index].set(xlabel=config)
-        axes[0, index].set_title(goal)
-
-        axes[0, index].imshow(
-            best_ctrl_simulation[0], **gif_files.FORMAT_OPTIONS)
-        axes[0, index].grid(False)
-        axes[0, index].tick_params(
-            bottom=False, left=False, labelbottom=False, labelleft=False)
-        axes[1, index].imshow(
-            best_ctrl_simulation[-1], **gif_files.FORMAT_OPTIONS)
-        axes[1, index].grid(False)
-        axes[1, index].tick_params(
-            bottom=False, left=False, labelbottom=False, labelleft=False)
-    fig.suptitle('Best control phenoytpes summary')
-    plt.tight_layout()
-    plt.savefig(f'output/experiments/best_ctrl_phenotypes.png')
-    plt.close()
-
-    for goal in goals:
-        experiment_data = all_experiment_data.where(
-            all_experiment_data['FitnessGoal'] == goal)
-        plt.figure().suptitle(f'Best organism fitness per configuration ({goal})')
-        ax = sns.boxplot(data=experiment_data, x='Configuration', y='FitnessScore')
-        ax.set_xticklabels(ax.get_xticklabels(), rotation=-45)
-        plt.tight_layout()
-        plt.savefig(f'output/experiments/best_organism_fitness_{goal}.png')
-        plt.close()
-
-        expt_species_data, config, expt_data = best_experiment_species_by_goal[goal]
-        expt_organism_fitness_data = pd.DataFrame(
-            np.column_stack(
-                (*ORGANISM_INDEX_COLUMNS,
-                 expt_species_data.all_trial_organism_fitness.flatten())),
-            columns=['Trial', 'Generation', 'Fitness'])
-        expt_organism_fitness_data['Configuration'] = config
-        expt_organism_fitness_data['FitnessFor'] = 'Organism'
-
-        expt_species_fitness_data = pd.DataFrame(
-            np.column_stack(
-                (*SPECIES_INDEX_COLUMNS,
-                 expt_data.all_trial_species_fitness.flatten())),
-            columns=['Trial', 'Generation', 'Fitness'])
-        expt_species_fitness_data['Configuration'] = config
-        expt_species_fitness_data['FitnessFor'] = 'Species'
-
-        ctrl_species_data, config = best_control_species_by_goal[goal]
-        ctrl_organism_fitness_data = pd.DataFrame(
-            np.column_stack(
-                (*ORGANISM_INDEX_COLUMNS,
-                 ctrl_species_data.all_trial_organism_fitness.flatten())),
-            columns=['Trial', 'Generation', 'Fitness'])
-        ctrl_organism_fitness_data['Configuration'] = config
-        ctrl_organism_fitness_data['FitnessFor'] = 'Organism'
-
-        species_max_fitness = expt_species_fitness_data['Fitness'].max()
-        organism_max_fitness = max(expt_organism_fitness_data['Fitness'].max(),
-                                   ctrl_organism_fitness_data['Fitness'].max())
-        expt_organism_fitness_data['Fitness'] /= organism_max_fitness
-        expt_species_fitness_data['Fitness'] /= species_max_fitness
-        ctrl_organism_fitness_data['Fitness'] /= organism_max_fitness
-
-        combined_organism_fitness_data = pd.concat(
-            (expt_species_fitness_data, expt_organism_fitness_data,
-             ctrl_organism_fitness_data))
-
-        facet_grid = sns.relplot(
-            data=combined_organism_fitness_data, kind='line',
-            col='FitnessFor', x='Generation', y='Fitness', hue='Configuration')
-        facet_grid.figure.suptitle(f'Best species fitness curves ({goal})',
-                                   y=1.05)
-        facet_grid.savefig(f'output/experiments/{goal}_evolvability.png')
-        plt.tight_layout()
-        plt.close()
-
-    for goal in goals:
-        # Find and mark the experiment with the best organism for this goal.
-        best_index = all_experiment_data.where(
-            (all_experiment_data['Kind'] == 'Experiment') &
-            (all_experiment_data['FitnessGoal'] == goal)
-        )['FitnessScore'].argmax()
-        all_experiment_data.iloc[
-            best_index, all_experiment_data.columns.get_loc('Best')] = True
-
-        # Do the same for the controls.
-        best_index = all_experiment_data.where(
-            (all_experiment_data['Kind'] == 'Control') &
-            (all_experiment_data['FitnessGoal'] == goal)
-        )['FitnessScore'].argmax()
-        all_experiment_data.iloc[
-            best_index, all_experiment_data.columns.get_loc('Best')] = True
-
-    # Normalize fitness scores across all FitnessGoals.
-    per_goal_max_scores = {
-        goal: all_experiment_data.where(
-            all_experiment_data['FitnessGoal'] == goal)['FitnessScore'].max()
-        for goal in all_experiment_data['FitnessGoal'].unique()
-    }
-    max_scores = all_experiment_data['FitnessGoal'].map(per_goal_max_scores)
-    all_experiment_data['FitnessScore'] /= max_scores
-
-    plt.figure().suptitle(f'Best organism fitness per FitnessGoal')
-    experiment_data = all_experiment_data.where(all_experiment_data['Best'])
-    ax = sns.barplot(
-        data=experiment_data, x='FitnessGoal', y='FitnessScore',
-        hue='Kind', width=0.3)
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=-45)
-    ax.set_ylabel('Best fitness score (normalized)')
-    plt.tight_layout()
-    plt.savefig('output/experiments/best_organism_fitness_all_goals.png')
-    plt.close()
-
+    visualize_per_goal_fitness(goals, all_experiment_data)
 
 
 def visualize_species_range():
@@ -484,7 +554,11 @@ def visualize_species_range():
                 (program.serialize() for program in programs),
                 dtype=PhenotypeProgramDType))
         title = 'Random Initial Population from Random Species'
-        visualize_random_populations(videos, title, filename)
+        fig, axes = render_image_grid(videos[:, 0])
+        fig.suptitle(title)
+        plt.tight_layout()
+        fig.savefig(filename)
+        plt.close()
 
 
 def visualize_results():
@@ -526,8 +600,8 @@ def visualize_results():
 
     # If we haven't yet run at least one trial for each experiment, stop here
     # and don't bother summarizing cross-experiment comparisons.
-    if all(experiment.has_started() for experiment in experiment_list):
-        visualize_cross_experiment_comparisons()
+    # if all(experiment.has_started() for experiment in experiment_list):
+    #     visualize_cross_experiment_comparisons()
 
     # Now visualize all the controls.
     for control in control_list:

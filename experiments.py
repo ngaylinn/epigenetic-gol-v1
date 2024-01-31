@@ -76,20 +76,27 @@ class SpeciesData:
         self.fitness = species_fitness
         self.phenotype_program = phenotype_program
 
+        #TODO: Clean this up!
         # Rather than recording the fitness of all organisms across all trials
         # and generations, keep just the best fitness score for all trials and
         # generations. This shows how max fitness improves over time, a sign of
         # "evolvability."
-        assert organism_fitness.shape == (
-            NUM_TRIALS, NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS)
-        self.all_trial_organism_fitness = organism_fitness.max(axis=1)
-        assert self.all_trial_organism_fitness.shape == (
-            NUM_TRIALS, NUM_ORGANISM_GENERATIONS)
+        # assert organism_fitness.shape == (
+        #     NUM_TRIALS, NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS)
+        # self.all_trial_organism_fitness = organism_fitness.max(axis=1)
+        # assert self.all_trial_organism_fitness.shape == (
+        #     NUM_TRIALS, NUM_ORGANISM_GENERATIONS)
+        self.all_trial_organism_fitness = organism_fitness
 
         # The best organism can vary significantly across trials, but not
         # always, and the focus of this experiment is on the species. For that
         # reason, only capture one best organism per species.
         self.best_organism = best_organism
+
+    def best_organism_fitness_history(self):
+        result = self.all_trial_organism_fitness.max(axis=1)
+        assert result.shape == (NUM_TRIALS, NUM_ORGANISM_GENERATIONS)
+        return result
 
     def __eq__(self, other):
         if other is None:
@@ -114,6 +121,10 @@ class ExperimentData:
         species across all trials and generations, useful for visualizing
         the "evolvability" of species in this experiment (and the effectiveness
         of the epigenetic algorithm overall).
+    TODO: Update!
+    organism_fitness_scores: numpy array of FitnessDType
+        The final fitness scores for all organisms of all species in this
+        experiment.
     """
     def __init__(self, results_path):
         # Try to load partial results from the filesystem, or create an empty
@@ -122,8 +133,9 @@ class ExperimentData:
         if self.load_from_filesystem():
             return
         self.best_species_per_trial = []
-        self.all_trial_species_fitness = np.zeros(
-            (NUM_TRIALS, NUM_SPECIES_GENERATIONS), dtype=FitnessDType)
+        self.all_trial_species_fitness = []
+        self.first_gen_organism_fitness_scores = []
+        self.organism_fitness_scores = []
 
     def log_trial(self, species_trial, clade):
         """Record the results of one experiment trial to the filesystem.
@@ -158,6 +170,13 @@ class ExperimentData:
                 species_index, organism_trial, organism_index, -1],
             clade.genotypes[species_index, organism_trial, organism_index])
 
+        first_gen_species_index = clade.species_fitness_history[:, 0].argmax()
+        self.first_gen_organism_fitness_scores.append(
+            clade.first_organism_fitness_history[
+                first_gen_species_index, :, :, :])
+        self.organism_fitness_scores.extend(
+            clade.organism_fitness_history[:, :, :, -1].flatten())
+
         # Record basic information about the best species in this species
         # trial, including the best organism of that species.
         species_data = SpeciesData(
@@ -169,7 +188,7 @@ class ExperimentData:
         # Record best species data from each species trial on filesystem.
         self.best_species_per_trial.append(species_data)
         self.best_species_per_trial.sort()
-        self.all_trial_species_fitness[species_trial] = (
+        self.all_trial_species_fitness.append(
             clade.species_fitness_history[species_index])
         self.save_to_filesystem()
 
@@ -179,7 +198,9 @@ class ExperimentData:
             with open(self.results_path, 'rb') as file:
                 data = pickle.load(file)
             (self.best_species_per_trial,
-             self.all_trial_species_fitness) = data
+             self.all_trial_species_fitness,
+             self.first_gen_organism_fitness_scores,
+             self.organism_fitness_scores) = data
             return True
         except Exception:
             return False
@@ -187,7 +208,9 @@ class ExperimentData:
     def save_to_filesystem(self):
         """Attempt to save ExperimentData to the filesystem."""
         data = (self.best_species_per_trial,
-                self.all_trial_species_fitness)
+                self.all_trial_species_fitness,
+                self.first_gen_organism_fitness_scores,
+                self.organism_fitness_scores)
         with open(self.results_path, 'wb') as file:
             pickle.dump(data, file)
 
@@ -330,6 +353,7 @@ class Control:
         self.fitness_goal = fitness_goal
         self.use_tiling = use_tiling
         self.config_str = config_str
+        self.organism_fitness_scores = []
 
     def has_started(self):
         return not self.has_finished()
@@ -407,27 +431,27 @@ def build_experiment_list():
     There's no need to call this function directly, just use the
     experiment_list variable below.
     """
-    # goals = [
-    #     FitnessGoal.ENTROPY,
-    #     FitnessGoal.EXPLODE,
-    #     FitnessGoal.LEFT_TO_RIGHT,
-    #     FitnessGoal.RING,
-    #     FitnessGoal.STILL_LIFE,
-    #     FitnessGoal.SYMMETRY,
-    #     FitnessGoal.THREE_CYCLE,
-    #     FitnessGoal.TWO_CYCLE,
-    # ]
-    goals = FitnessGoal.__members__.values()
+    goals = [
+        FitnessGoal.ENTROPY,
+        FitnessGoal.EXPLODE,
+        FitnessGoal.LEFT_TO_RIGHT,
+        FitnessGoal.RING,
+        FitnessGoal.STILL_LIFE,
+        FitnessGoal.SYMMETRY,
+        FitnessGoal.THREE_CYCLE,
+        FitnessGoal.TWO_CYCLE,
+    ]
+    # goals = FitnessGoal.__members__.values()
     bias_options = [
-        False,
+        # False,
         True,
     ]
     composition_options = [
-        False,
+        # False,
         True,
     ]
     stamp_options = [
-        False,
+        # False,
         True,
     ]
     experiment_list = []
@@ -452,7 +476,17 @@ experiment_list = build_experiment_list()
 
 def build_control_list():
     """Like build_experiment_list, but for the controls."""
-    goals = FitnessGoal.__members__.values()
+    goals = [
+        FitnessGoal.ENTROPY,
+        FitnessGoal.EXPLODE,
+        FitnessGoal.LEFT_TO_RIGHT,
+        FitnessGoal.RING,
+        FitnessGoal.STILL_LIFE,
+        FitnessGoal.SYMMETRY,
+        FitnessGoal.THREE_CYCLE,
+        FitnessGoal.TWO_CYCLE,
+    ]
+    # goals = FitnessGoal.__members__.values()
     tiling_options = [
         False,
         True,

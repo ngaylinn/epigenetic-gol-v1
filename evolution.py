@@ -106,6 +106,10 @@ class Clade:
         self.innovation_counter = itertools.count()
         self.programs = []
         self.genotypes = None
+        self.first_organism_fitness_history = np.empty(
+            (num_species, NUM_TRIALS,
+             NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS),
+            dtype=np.uint32)
         self.organism_fitness_history = np.empty(
             (num_species, NUM_TRIALS,
              NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS),
@@ -158,6 +162,11 @@ class Clade:
             self.evolve_organisms(fitness_goal)
             this_gen_fitness = compute_species_fitness(
                 self.num_species, self.organism_fitness_history)
+            # Save a copy of the full organism fitness history in the first
+            # generation, so we can visualize it later.
+            if generation == 0:
+                self.first_organism_fitness_history = (
+                    self.organism_fitness_history.copy())
             self.species_fitness_history[:, generation] = this_gen_fitness
 
             # Breed new species, unless this is the last generation.

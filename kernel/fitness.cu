@@ -139,10 +139,8 @@ __device__ void FitnessObserver<FitnessGoal::LEFT_TO_RIGHT>::finalize(
         const uint32_t& on_target_last_frame,
         Fitness* result) {
     // Look for simulations with high on-target values for the first and last
-    // steps. Weight the last step higher than the first, since it's much
-    // easier to craft a good starting phenotype than to have the simulation
-    // ultimately produce a good last step.
-    *result = on_target_first_frame + 4 * on_target_last_frame;
+    // steps.
+    *result = on_target_first_frame + on_target_last_frame;
 }
 
 

@@ -109,6 +109,7 @@ def add_simulation_data_to_figure(data, fig, axis):
         A 2D Numpy array representing a single Frame from a Video or a 3D array
         representing the whole Video.
     fig : A PLT figure. This function will append to that figure using imshow.
+    axis : A PLT axis. Where to place the image in the figure.
 
     Returns
     -------
@@ -116,15 +117,20 @@ def add_simulation_data_to_figure(data, fig, axis):
     object that the caller is responsible for holding onto until calling
     plt.show().
     """
+    # Format the axis to draw the image without any axes or decorations except
+    # for a red border to indicate the image bounding box.
+    axis.grid(False)
     axis.spines[:].set_visible(True)
     plt.setp(axis.spines.values(), color='#ff0000')
     plt.setp(axis.spines.values(), linewidth=1)
+    axis.tick_params(bottom=False, left=False, labelbottom=False,
+                     labelleft=False)
 
     if data.ndim == 2:
-        plt.imshow(data, **FORMAT_OPTIONS)
+        axis.imshow(data, **FORMAT_OPTIONS)
         return None
 
-    image = plt.imshow(data[0], **FORMAT_OPTIONS)
+    image = axis.imshow(data[0], **FORMAT_OPTIONS)
 
     def animate_func(i):
         image.set_array(data[i])

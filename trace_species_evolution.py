@@ -90,12 +90,8 @@ def main():
 
             axis = fig.add_subplot(5, 10, species_index + 1)
             axis.set_title(species_index)
-            axis.grid(False)
-            axis.spines[:].set_visible(True)
             axis.set_xlabel(
                 f'S:{species_fitness[species_index]:,} | O:{fitness:,}')
-            axis.tick_params(bottom=False, left=False,
-                             labelbottom=False, labelleft=False)
             gif_files.add_simulation_data_to_figure(simulation[0], fig, axis)
 
             if num_children[species_index] > 0:
