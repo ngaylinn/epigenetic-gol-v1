@@ -62,7 +62,7 @@ def render_random_populations(programs):
     return simulations[:, 0]
 
 
-def render_image_grid(images, rows=2, cols=8):
+def render_image_grid(images, rows, cols):
     fig, axes = plt.subplots(rows, cols, figsize=(2*cols, 2*rows))
     for index in range(rows * cols):
         axis = axes[divmod(index, cols)]
@@ -111,7 +111,7 @@ def visualize_control_data(control):
     visualize_species_data(species_data, control.path, control.name)
 
     random_populations = render_random_populations([phenotype_program])
-    fig, axes = render_image_grid(random_populations[0, :, 0])
+    fig, axes = render_image_grid(random_populations[0, :, 0], rows=2, cols=4)
     fig.suptitle(f'Random Initial Population ({control.name})')
     plt.tight_layout()
     fig.savefig(control.path.joinpath('random_initial_population.png'))
@@ -207,7 +207,8 @@ def visualize_experiment_data(experiment):
         # Visualize a random population of organisms generated for this species
         # by putting the first Frame from a sampling of Videos into a single
         # image.
-        fig, axes = render_image_grid(random_populations[trial, :, 0])
+        fig, axes = render_image_grid(
+            random_populations[trial, :, 0], rows=2, cols=4)
         plt.tight_layout()
         fig.savefig(species_path.joinpath('random_initial_population.png'))
         plt.close()
@@ -283,7 +284,7 @@ def visualize_best_phenotypes(goals, best_expt_species_by_goal,
         images[index] = best_expt_simulation[0]
         images[index + len(goals)] = best_expt_simulation[-1]
 
-    fig, axes = render_image_grid(images)
+    fig, axes = render_image_grid(images, rows=2, cols=8)
     axes[0, 0].set(ylabel='First step')
     axes[1, 0].set(ylabel='Last step')
     for index, goal in enumerate(goals):
@@ -291,7 +292,6 @@ def visualize_best_phenotypes(goals, best_expt_species_by_goal,
         axes[0, index].xaxis.set_label_position('top')
         axes[0, index].set(xlabel=config)
         axes[0, index].set_title(goal)
-    fig.suptitle('Best experimental phenoytpes summary')
     plt.tight_layout()
     plt.savefig(f'output/experiments/best_expt_phenotypes.png')
     plt.close()
@@ -305,7 +305,7 @@ def visualize_best_phenotypes(goals, best_expt_species_by_goal,
         images[index] = best_ctrl_simulation[0]
         images[index + len(goals)] = best_ctrl_simulation[-1]
 
-    fig, axes = render_image_grid(images)
+    fig, axes = render_image_grid(images, rows=2, cols=8)
     axes[0, 0].set(ylabel='First step')
     axes[1, 0].set(ylabel='Last step')
     for index, goal in enumerate(goals):
@@ -313,7 +313,6 @@ def visualize_best_phenotypes(goals, best_expt_species_by_goal,
         axes[0, index].xaxis.set_label_position('top')
         axes[0, index].set(xlabel=config)
         axes[0, index].set_title(goal)
-    fig.suptitle('Best control phenoytpes summary')
     plt.tight_layout()
     plt.savefig(f'output/experiments/best_ctrl_phenotypes.png')
     plt.close()
@@ -335,7 +334,7 @@ def visualize_evolvability(goals,
             data=expt_species_fitness_data, kind='line',
             x='Generation', y='Fitness')
         facet_grid.figure.set_size_inches(4, 4)
-        plt.suptitle(f'All trials best species fitness ({goal})')
+        plt.suptitle(f'Outer loop best fitness ({goal}, all trials)')
         plt.tight_layout()
         plt.savefig(f'output/experiments/{goal}/species_fitness.png')
         plt.close()
@@ -349,14 +348,14 @@ def visualize_evolvability(goals,
             np.column_stack(
                 (*ORGANISM_INDEX_COLUMNS, best_organism_fitness.flatten())),
             columns=['Trial', 'Generation', 'Fitness'])
-        expt_organism_fitness_data['Configuration'] = 'Expt (evolved species)'
+        expt_organism_fitness_data['Configuration'] = 'Expt (evolved GP map)'
 
         first_organism_fitness_data = pd.DataFrame(
             np.column_stack(
                 (*ORGANISM_INDEX_COLUMNS,
                  first_gen_best_organism_fitness_by_goal[goal].flatten())),
             columns=['Trial', 'Generation', 'Fitness'])
-        first_organism_fitness_data['Configuration'] = 'Expt (unevolved species)'
+        first_organism_fitness_data['Configuration'] = 'Expt (unevolved GP map)'
 
         ctrl_species_data, config = best_ctrl_species_by_goal[goal]
         ctrl_organism_fitness_data = pd.DataFrame(
@@ -402,7 +401,7 @@ def visualize_evolvability(goals,
 
         plt.legend(loc='best', bbox_to_anchor=(1.1, -0.2), ncol=2,
                    frameon=False)
-        plt.suptitle(f'All trials best organism fitness ({goal})')
+        plt.suptitle(f'Inner loop best fitness ({goal}, all trials)')
         plt.savefig(f'output/experiments/{goal}/organism_fitness.png')
         plt.close()
 
@@ -440,7 +439,7 @@ def visualize_per_goal_fitness(goals, experiment_data):
 
     # Render a chart with one column for each FitnessGoal, comparing experiment
     # to control.
-    plt.figure().suptitle(f'Final generation organism fitness per FitnessGoal')
+    plt.figure().suptitle(f'Final phenotype fitness per FitnessGoal')
     ax = sns.boxplot(
         data=experiment_data, x='FitnessGoal', y='FitnessScore',
         hue='Kind', width=0.3, showfliers=False)
@@ -534,7 +533,7 @@ def visualize_experiment_vs_control():
 
     # Render a summary of the best phenotypes from experiment and control.
     # visualize_best_phenotypes(goals, best_expt_species_by_goal,
-    #                           best_ctrl_species_by_goal)
+    #                          best_ctrl_species_by_goal)
 
     ## Visualize how evolvability improves as the species evolve.
     # visualize_evolvability(goals,
@@ -553,9 +552,7 @@ def visualize_species_range():
             np.fromiter(
                 (program.serialize() for program in programs),
                 dtype=PhenotypeProgramDType))
-        title = 'Random Initial Population from Random Species'
-        fig, axes = render_image_grid(videos[:, 0])
-        fig.suptitle(title)
+        fig, axes = render_image_grid(videos[:, 0], rows=2, cols=4)
         plt.tight_layout()
         fig.savefig(filename)
         plt.close()
