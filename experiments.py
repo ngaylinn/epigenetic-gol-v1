@@ -76,16 +76,10 @@ class SpeciesData:
         self.fitness = species_fitness
         self.phenotype_program = phenotype_program
 
-        #TODO: Clean this up!
-        # Rather than recording the fitness of all organisms across all trials
-        # and generations, keep just the best fitness score for all trials and
-        # generations. This shows how max fitness improves over time, a sign of
-        # "evolvability."
-        # assert organism_fitness.shape == (
-        #     NUM_TRIALS, NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS)
-        # self.all_trial_organism_fitness = organism_fitness.max(axis=1)
-        # assert self.all_trial_organism_fitness.shape == (
-        #     NUM_TRIALS, NUM_ORGANISM_GENERATIONS)
+        # Record the fitness history for the full population of organisms in
+        # this species.
+        assert organism_fitness.shape == (
+            NUM_TRIALS, NUM_ORGANISMS, NUM_ORGANISM_GENERATIONS)
         self.all_trial_organism_fitness = organism_fitness
 
         # The best organism can vary significantly across trials, but not
@@ -94,6 +88,7 @@ class SpeciesData:
         self.best_organism = best_organism
 
     def best_organism_fitness_history(self):
+        """ Return the fitness history of the best organism in each trial."""
         result = self.all_trial_organism_fitness.max(axis=1)
         assert result.shape == (NUM_TRIALS, NUM_ORGANISM_GENERATIONS)
         return result
@@ -121,7 +116,9 @@ class ExperimentData:
         species across all trials and generations, useful for visualizing
         the "evolvability" of species in this experiment (and the effectiveness
         of the epigenetic algorithm overall).
-    TODO: Update!
+    first_gen_organism_fitness_scores: numpy array of FitnessDType
+        The full fitness history of all organisms in the first species
+        generation (unevolved).
     organism_fitness_scores: numpy array of FitnessDType
         The final fitness scores for all organisms of all species in this
         experiment.
@@ -170,10 +167,15 @@ class ExperimentData:
                 species_index, organism_trial, organism_index, -1],
             clade.genotypes[species_index, organism_trial, organism_index])
 
+        # Record the full fitness history for organisms in the first generation
+        # of species (unevolved).
         first_gen_species_index = clade.species_fitness_history[:, 0].argmax()
         self.first_gen_organism_fitness_scores.append(
             clade.first_organism_fitness_history[
                 first_gen_species_index, :, :, :])
+
+        # Record the final organism fitness for each trial and generation of
+        # species evolved.
         self.organism_fitness_scores.extend(
             clade.organism_fitness_history[:, :, :, -1].flatten())
 

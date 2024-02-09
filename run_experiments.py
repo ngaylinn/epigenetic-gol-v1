@@ -112,8 +112,7 @@ def run_experiments():
         # it could run in parallel with this script, but contention for the
         # Python GIL and GPU resources makes that tricky, so just wait for the
         # command to complete before resuming.
-        # TODO: Restore.
-        # subprocess.run(['python3', 'visualize_results.py'])
+        subprocess.run(['python3', 'visualize_results.py'])
 
     print(f'Running {len(control_list)} controls.')
     if not all(control.has_finished() for control in control_list):
@@ -127,8 +126,7 @@ def run_experiments():
             progress_bar.update()
         progress_bar.close()
     print('All controls completed.')
-    # TODO: Restore.
-    # subprocess.run(['python3', 'visualize_results.py'])
+    subprocess.run(['python3', 'visualize_results.py'])
 
 
 
