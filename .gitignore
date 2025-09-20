@@ -1,0 +1,26 @@
+# Ignore generated output from CMake and Make
+/CMakeCache.txt
+/CMakeFiles/
+Makefile
+cmake_install.cmake
+compile_commands.json
+.clangd
+
+# Ignore compiled python module outputs
+*.so
+*.pyi
+
+# Ignore vim's swap and session files.
+*.sw?
+*.vim
+
+# Ignore local cache directories
+__pycache__/
+.cache/
+
+# Ignore generated output from this project
+cpp_demo
+/output/
+
+# Ignore my hand-captured samples
+/nice/
